@@ -1,0 +1,17 @@
+{
+    "name": "ingestor",
+    "version": "0.1.0",
+    "description": "Very simple AWS S3 object ingestor",
+    "main": "ingestor.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jonathan-gramain/ingestor.git"
+    },
+    "author": "Jonathan Gramain",
+    "license": "Apache-2.0",
+    "dependencies": {
+        "async": "^2.6.0",
+        "aws-sdk": "^2.343.0",
+        "commander": "^2.19.0"
+    }
+}
