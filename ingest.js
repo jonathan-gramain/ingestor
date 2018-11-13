@@ -8,6 +8,7 @@ const STATUS_BAR_TPL =
           new Array(STATUS_BAR_LENGTH).fill(' ')).join('');
 const STATUS_UPDATE_PERIOD_MS = 200;
 const STATS_PERIOD_MS = 2000;
+const STATS_QUANTILES_WINDOW_SIZE = 1000;
 
 function generateBody(size) {
     const randomString = Math.random().toString(36).slice(2);
@@ -23,6 +24,9 @@ const statsWindow = new Array(Math.max(
     1)).fill({});
 let statsWindowIndex = 0;
 
+const latenciesWindow = [];
+let latenciesWindowPos = 0;
+
 function queryStatsWindow() {
     return statsWindow[statsWindowIndex];
 }
@@ -30,6 +34,33 @@ function queryStatsWindow() {
 function updateStatsWindow(statsObj) {
     statsWindow[statsWindowIndex] = statsObj;
     statsWindowIndex = (statsWindowIndex + 1) % statsWindow.length;
+}
+
+function getLatencyQuantiles() {
+    const sortedLatencies = latenciesWindow.concat().sort((a, b) => a - b);
+    const quantileIndices = {
+        lowest: 0,
+        highest: sortedLatencies.length - 1,
+        '10%': Math.floor(sortedLatencies.length / 10),
+        '50%': Math.floor(sortedLatencies.length / 2),
+        '90%': Math.floor(9 * sortedLatencies.length / 10),
+    };
+    if (sortedLatencies[0] === undefined) {
+        return '';
+    }
+    return '|' + ['lowest', '10%', '50%', '90%', 'highest']
+        .map(key => `${key} ${sortedLatencies[quantileIndices[key]]}ms`)
+        .join('|') + '|';
+}
+
+function addLatency(latencyMs) {
+    if (latenciesWindow.length < STATS_QUANTILES_WINDOW_SIZE) {
+        latenciesWindow.push(latencyMs);
+    } else {
+        latenciesWindow[latenciesWindowPos] = latencyMs;
+        latenciesWindowPos =
+            (latenciesWindowPos + 1) % STATS_QUANTILES_WINDOW_SIZE;
+    }
 }
 
 function showStatus(values) {
@@ -50,7 +81,8 @@ function showStatus(values) {
             + `% ` + `        ${doneCount}`.slice(-8)
             + ` ops (${values.errorCount} errors) `
             + `${`      ${isNaN(opsPerSec) ? '' : opsPerSec.toFixed(0)}`.slice(-6)} op/s `
-            + `${`        ${isNaN(kBPerSec) ? '' : kBPerSec.toFixed(0)}`.slice(-8)} KB/s`);
+            + `${`        ${isNaN(kBPerSec) ? '' : kBPerSec.toFixed(0)}`.slice(-8)} KB/s `
+            + getLatencyQuantiles() + '    ');
 }
 
 function ingest(options, cb) {
@@ -95,6 +127,7 @@ function ingest(options, cb) {
                                                 STATUS_UPDATE_PERIOD_MS);
     async.timesLimit(options.count, options.workers, (n, next) => {
         const key = `${options.prefix}test-key-${`000000${n}`.slice(-6)}`;
+        const startTime = Date.now();
         s3.putObject({
             Bucket: options.bucket,
             Key: key,
@@ -106,6 +139,8 @@ function ingest(options, cb) {
                 ++errorCount;
             } else {
                 ++successCount;
+                const endTime = Date.now();
+                addLatency(endTime - startTime);
             }
             next();
         });
