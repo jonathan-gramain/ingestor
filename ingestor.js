@@ -12,6 +12,7 @@ ingestor.command('ingest')
     .option('--count [n]', 'how many objects total', 100, parseInt)
     .option('--size [n]', 'size of individual objects in bytes', 1000, parseInt)
     .option('--prefix [prefix]', 'key prefix', '')
+    .option('--one-object', 'hammer on a single object', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||

@@ -96,6 +96,7 @@ function ingest(options, cb) {
     workers:      ${options.workers}
     object count: ${options.count}
     object size:  ${options.size}
+    one object:   ${options.oneObject ? 'yes' : 'no'}
 `);
 
     const credentials = new AWS.SharedIniFileCredentials({
@@ -126,7 +127,12 @@ function ingest(options, cb) {
     const updateStatusBarInterval = setInterval(updateStatusBar,
                                                 STATUS_UPDATE_PERIOD_MS);
     async.timesLimit(options.count, options.workers, (n, next) => {
-        const key = `${options.prefix}test-key-${`000000${n}`.slice(-6)}`;
+        let key;
+        if (options.oneObject) {
+            key = `${options.prefix}test-key`;
+        } else {
+            key = `${options.prefix}test-key-${`000000${n}`.slice(-6)}`;
+        }
         const startTime = Date.now();
         s3.putObject({
             Bucket: options.bucket,
