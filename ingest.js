@@ -97,6 +97,7 @@ function ingest(options, cb) {
     object count: ${options.count}
     object size:  ${options.size}
     one object:   ${options.oneObject ? 'yes' : 'no'}
+    del after put:${options.deleteAfterPut ? 'yes' : 'no'}
 `);
 
     const credentials = new AWS.SharedIniFileCredentials({
@@ -144,11 +145,29 @@ function ingest(options, cb) {
                               err.message);
                 ++errorCount;
             } else {
-                ++successCount;
-                const endTime = Date.now();
-                addLatency(endTime - startTime);
+                if (options.deleteAfterPut) {
+                    s3.deleteObject({
+                        Bucket: options.bucket,
+                        Key: key,
+                    }, err => {
+                        if (err) {
+                            console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                                          err.message);
+                            ++errorCount;
+                        } else {
+                            ++successCount;
+                            const endTime = Date.now();
+                            addLatency(endTime - startTime);
+                            next();
+                        }
+                    });
+                } else {
+                    ++successCount;
+                    const endTime = Date.now();
+                    addLatency(endTime - startTime);
+                    next();
+                }
             }
-            next();
         });
     }, () => {
         updateStatusBar();
