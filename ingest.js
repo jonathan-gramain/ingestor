@@ -98,6 +98,7 @@ function ingest(options, cb) {
     object size:  ${options.size}
     one object:   ${options.oneObject ? 'yes' : 'no'}
     del after put:${options.deleteAfterPut ? 'yes' : 'no'}
+    rate limit:   ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
 `);
 
     const credentials = new AWS.SharedIniFileCredentials({
@@ -127,6 +128,7 @@ function ingest(options, cb) {
     }
     const updateStatusBarInterval = setInterval(updateStatusBar,
                                                 STATUS_UPDATE_PERIOD_MS);
+    let nextTime = options.rateLimit ? Date.now() : null;
     async.timesLimit(options.count, options.workers, (n, next) => {
         let key;
         if (options.oneObject) {
@@ -135,40 +137,59 @@ function ingest(options, cb) {
             key = `${options.prefix}test-key-${`000000${n}`.slice(-6)}`;
         }
         const startTime = Date.now();
-        s3.putObject({
-            Bucket: options.bucket,
-            Key: key,
-            Body: body,
-        }, err => {
-            if (err) {
-                console.error(`error during "PUT ${options.bucket}/${key}":`,
-                              err.message);
-                ++errorCount;
-            } else {
-                if (options.deleteAfterPut) {
-                    s3.deleteObject({
-                        Bucket: options.bucket,
-                        Key: key,
-                    }, err => {
-                        if (err) {
-                            console.error(`error during "DELETE ${options.bucket}/${key}":`,
-                                          err.message);
-                            ++errorCount;
-                        } else {
-                            ++successCount;
-                            const endTime = Date.now();
-                            addLatency(endTime - startTime);
-                            next();
-                        }
-                    });
+        const doOp = () => {
+            const opStartTime = Date.now();
+            const endOp = () => {
+                ++successCount;
+                const endTime = Date.now();
+                addLatency(endTime - opStartTime);
+                next();
+            };
+            s3.putObject({
+                Bucket: options.bucket,
+                Key: key,
+                Body: body,
+            }, err => {
+                if (err) {
+                    console.error(`error during "PUT ${options.bucket}/${key}":`,
+                                  err.message);
+                    ++errorCount;
                 } else {
-                    ++successCount;
-                    const endTime = Date.now();
-                    addLatency(endTime - startTime);
-                    next();
+                    if (options.deleteAfterPut) {
+                        s3.deleteObject({
+                            Bucket: options.bucket,
+                            Key: key,
+                        }, err => {
+                            if (err) {
+                                console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                                              err.message);
+                                ++errorCount;
+                            } else {
+                                endOp();
+                            }
+                        });
+                    } else {
+                        endOp();
+                    }
                 }
+            });
+        };
+        if (nextTime) {
+            if (startTime > nextTime) {
+                doOp();
+            } else {
+                setTimeout(doOp, nextTime - startTime);
             }
-        });
+            const nextDelay = 1000 / options.rateLimit;
+            nextTime += nextDelay;
+            if (nextTime < startTime) {
+                // we're lagging behind the rate limit, keep up to
+                // resynchronize
+                nextTime = startTime;
+            }
+        } else {
+            doOp();
+        }
     }, () => {
         updateStatusBar();
         console.log();

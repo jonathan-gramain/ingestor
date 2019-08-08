@@ -14,6 +14,8 @@ ingestor.command('ingest')
     .option('--prefix [prefix]', 'key prefix', '')
     .option('--one-object', 'hammer on a single object', false)
     .option('--delete-after-put', 'send deletes after objects are put', false)
+    .option('--rate-limit [n]',
+            'limit rate of operations (in op/s)', 0, parseInt)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
