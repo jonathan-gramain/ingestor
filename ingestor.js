@@ -16,6 +16,10 @@ ingestor.command('ingest')
     .option('--delete-after-put', 'send deletes after objects are put', false)
     .option('--rate-limit [n]',
             'limit rate of operations (in op/s)', 0, parseInt)
+    .option('--csv-stats [filename]', 'output file for stats in CSV format')
+    .option('--csv-stats-interval [n]',
+            'interval in seconds between each CSV stats output line',
+            10, parseInt)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||

@@ -1,5 +1,6 @@
 const async = require('async');
 const http = require('http');
+const fs = require('fs');
 const AWS = require('aws-sdk');
 
 const STATUS_BAR_LENGTH = 60;
@@ -9,6 +10,18 @@ const STATUS_BAR_TPL =
 const STATUS_UPDATE_PERIOD_MS = 200;
 const STATS_PERIOD_MS = 2000;
 const STATS_QUANTILES_WINDOW_SIZE = 1000;
+
+const LATENCY_QUANTILES = {
+    'lowest': 0,
+    '10%': 0.1,
+    '50%': 0.5,
+    '90%': 0.9,
+    'highest': 0.9999999,
+};
+
+const LATENCY_QUANTILES_LABELS = Object.entries(LATENCY_QUANTILES)
+      .sort((q1, q2) => q1[1] < q2[1] ? -1 : 1)
+      .map(q => q[0]);
 
 function generateBody(size) {
     const randomString = Math.random().toString(36).slice(2);
@@ -27,6 +40,8 @@ let statsWindowIndex = 0;
 const latenciesWindow = [];
 let latenciesWindowPos = 0;
 
+let csvStatsFile;
+
 function queryStatsWindow() {
     return statsWindow[statsWindowIndex];
 }
@@ -38,19 +53,28 @@ function updateStatsWindow(statsObj) {
 
 function getLatencyQuantiles() {
     const sortedLatencies = latenciesWindow.concat().sort((a, b) => a - b);
-    const quantileIndices = {
-        lowest: 0,
-        highest: sortedLatencies.length - 1,
-        '10%': Math.floor(sortedLatencies.length / 10),
-        '50%': Math.floor(sortedLatencies.length / 2),
-        '90%': Math.floor(9 * sortedLatencies.length / 10),
-    };
+    const quantiles = {};
     if (sortedLatencies[0] === undefined) {
-        return '';
+        LATENCY_QUANTILES_LABELS.forEach(l => quantiles[l] = NaN);
+        return quantiles;
     }
-    return '|' + ['lowest', '10%', '50%', '90%', 'highest']
-        .map(key => `${key} ${sortedLatencies[quantileIndices[key]]}ms`)
+    Object.entries(LATENCY_QUANTILES).forEach(q => {
+        const index = Math.floor(q[1] * sortedLatencies.length);
+        quantiles[q[0]] = sortedLatencies[index];
+    });
+    return quantiles;
+}
+
+function getLatencyQuantilesPretty() {
+    const quantiles = getLatencyQuantiles();
+    return '|' + LATENCY_QUANTILES_LABELS
+        .map(key => `${key} ${quantiles[key]}ms`)
         .join('|') + '|';
+}
+
+function getLatencyQuantilesCsv() {
+    const quantiles = getLatencyQuantiles();
+    return LATENCY_QUANTILES_LABELS.map(l => quantiles[l]).join(',');
 }
 
 function addLatency(latencyMs) {
@@ -63,26 +87,28 @@ function addLatency(latencyMs) {
     }
 }
 
-function showStatus(values) {
-    const doneCount = values.successCount + values.errorCount;
-    const completionRatio = doneCount / values.totalCount;
+function showStatus(stats) {
+    const doneCount = stats.successCount + stats.errorCount;
+    const completionRatio = doneCount / stats.totalCount;
     const completeCharCount = Math.floor(completionRatio * STATUS_BAR_LENGTH);
     const statusBarTplOffset = STATUS_BAR_LENGTH - completeCharCount;
-    const doneCountInPeriod = doneCount - queryStatsWindow().doneCount;
-    updateStatsWindow({ doneCount });
-    const opsPerSec = (doneCountInPeriod * 1000) / STATS_PERIOD_MS;
-    const kBPerSec = (doneCountInPeriod * values.objectSize) / STATS_PERIOD_MS;
     process.stdout.write(
         '\r['
             + STATUS_BAR_TPL.slice(statusBarTplOffset,
                                    statusBarTplOffset + STATUS_BAR_LENGTH)
             + `] `
-            + `   ${Math.floor(doneCount / values.totalCount * 100)}`.slice(-3)
+            + `   ${Math.floor(doneCount / stats.totalCount * 100)}`.slice(-3)
             + `% ` + `        ${doneCount}`.slice(-8)
-            + ` ops (${values.errorCount} errors) `
-            + `${`      ${isNaN(opsPerSec) ? '' : opsPerSec.toFixed(0)}`.slice(-6)} op/s `
-            + `${`        ${isNaN(kBPerSec) ? '' : kBPerSec.toFixed(0)}`.slice(-8)} KB/s `
-            + getLatencyQuantiles() + '    ');
+            + ` ops (${stats.errorCount} errors) `
+            + `${`      ${isNaN(stats.opsPerSec) ? '' : stats.opsPerSec.toFixed(0)}`.slice(-6)} op/s `
+            + `${`        ${isNaN(stats.kBPerSec) ? '' : stats.kBPerSec.toFixed(0)}`.slice(-8)} KB/s `
+            + getLatencyQuantilesPretty() + '    ');
+}
+
+function outputCsvLine(stats) {
+    fs.writeSync(
+        csvStatsFile,
+        `${Date.now()},${stats.opsPerSec},${stats.kBPerSec},${getLatencyQuantilesCsv()}\n`);
 }
 
 function ingest(options, cb) {
@@ -90,15 +116,17 @@ function ingest(options, cb) {
         options.prefix = `test-${new Date().toISOString().replace(/[:.]/g, '-')}/`;
     }
     console.log(`
-    endpoint:     ${options.endpoint}
-    prefix:       ${options.prefix}
-    bucket:       ${options.bucket}
-    workers:      ${options.workers}
-    object count: ${options.count}
-    object size:  ${options.size}
-    one object:   ${options.oneObject ? 'yes' : 'no'}
-    del after put:${options.deleteAfterPut ? 'yes' : 'no'}
-    rate limit:   ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
+    endpoint:            ${options.endpoint}
+    prefix:              ${options.prefix}
+    bucket:              ${options.bucket}
+    workers:             ${options.workers}
+    object count:        ${options.count}
+    object size:         ${options.size}
+    one object:          ${options.oneObject ? 'yes' : 'no'}
+    del after put:       ${options.deleteAfterPut ? 'yes' : 'no'}
+    rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
+    CSV output:          ${options.csvStats ? options.csvStats : 'none'}
+    CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
 `);
 
     const credentials = new AWS.SharedIniFileCredentials({
@@ -118,16 +146,48 @@ function ingest(options, cb) {
     });
     let successCount = 0;
     let errorCount = 0;
-    function updateStatusBar() {
-        showStatus({
+
+    function getMashedStats() {
+        const doneCount = successCount + errorCount;
+        const doneCountInPeriod = doneCount - queryStatsWindow().doneCount;
+        updateStatsWindow({ doneCount });
+        const opsPerSec = (doneCountInPeriod * 1000) / STATS_PERIOD_MS;
+        const kBPerSec = (doneCountInPeriod * options.size) / STATS_PERIOD_MS;
+
+        return {
+            totalCount: options.count,
             successCount,
             errorCount,
-            totalCount: options.count,
-            objectSize: options.size,
-        });
+            opsPerSec,
+            kBPerSec,
+        };
     }
-    const updateStatusBarInterval = setInterval(updateStatusBar,
-                                                STATUS_UPDATE_PERIOD_MS);
+
+    function updateStatusBarIntervalFunc() {
+        showStatus(getMashedStats());
+    }
+    const updateStatusBarInterval =
+          setInterval(updateStatusBarIntervalFunc, STATUS_UPDATE_PERIOD_MS);
+
+
+    function outputCsvLineIntervalFunc() {
+        outputCsvLine(getMashedStats());
+    }
+
+    let csvStatsInterval;
+    if (options.csvStats) {
+        csvStatsFile = fs.openSync(options.csvStats, 'w');
+        fs.writeSync(
+            csvStatsFile,
+            ['time',
+             'opsPerSec',
+             'kBPerSec']
+                .concat(LATENCY_QUANTILES_LABELS.map(l => `q-ms:${l}`))
+                .join(',') + '\n');
+        csvStatsInterval =
+            setInterval(outputCsvLineIntervalFunc,
+                        options.csvStatsInterval * 1000);
+    }
     let nextTime = options.rateLimit ? Date.now() : null;
     async.timesLimit(options.count, options.workers, (n, next) => {
         let key;
@@ -190,9 +250,13 @@ function ingest(options, cb) {
             doOp();
         }
     }, () => {
-        updateStatusBar();
+        updateStatusBarIntervalFunc();
         console.log();
         clearInterval(updateStatusBarInterval);
+        if (csvStatsFile) {
+            fs.closeSync(csvStatsFile);
+            clearInterval(csvStatsInterval);
+        }
         cb();
     });
 }
