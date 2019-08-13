@@ -139,7 +139,7 @@ function ingest(options, cb) {
         const startTime = Date.now();
         const doOp = () => {
             const opStartTime = Date.now();
-            const endOp = () => {
+            const endSuccess = () => {
                 ++successCount;
                 const endTime = Date.now();
                 addLatency(endTime - opStartTime);
@@ -154,24 +154,23 @@ function ingest(options, cb) {
                     console.error(`error during "PUT ${options.bucket}/${key}":`,
                                   err.message);
                     ++errorCount;
-                } else {
-                    if (options.deleteAfterPut) {
-                        s3.deleteObject({
-                            Bucket: options.bucket,
-                            Key: key,
-                        }, err => {
-                            if (err) {
-                                console.error(`error during "DELETE ${options.bucket}/${key}":`,
-                                              err.message);
-                                ++errorCount;
-                            } else {
-                                endOp();
-                            }
-                        });
-                    } else {
-                        endOp();
-                    }
+                    return next();
                 }
+                if (!options.deleteAfterPut) {
+                    return endSuccess();
+                }
+                return s3.deleteObject({
+                    Bucket: options.bucket,
+                    Key: key,
+                }, err => {
+                    if (err) {
+                        console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                                      err.message);
+                        ++errorCount;
+                        return next();
+                    }
+                    return endSuccess();
+                });
             });
         };
         if (nextTime) {
