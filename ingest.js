@@ -14,7 +14,8 @@ function ingest(options, cb) {
         options.prefix = `test-${new Date().toISOString().replace(/[:.]/g, '-')}/`;
     }
 
-    batch.showOptions(options);
+    const obj = batch.create(options);
+    batch.showOptions(obj);
 
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
@@ -56,7 +57,7 @@ function ingest(options, cb) {
             });
         });
     };
-    batch.run(options, ingestOp, cb);
+    batch.run(obj, ingestOp, cb);
 }
 
 module.exports = ingest;

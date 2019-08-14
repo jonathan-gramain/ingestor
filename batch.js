@@ -102,21 +102,7 @@ function outputCsvLine(stats) {
         `${Date.now()},${stats.opsPerSec},${stats.kBPerSec},${getLatencyQuantilesCsv()}\n`);
 }
 
-function showOptions(options) {
-    process.stdout.write(`
-    endpoint:            ${options.endpoint}
-    prefix:              ${options.prefix}
-    bucket:              ${options.bucket}
-    workers:             ${options.workers}
-    object count:        ${options.count}
-    object size:         ${options.size}
-    rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
-    CSV output:          ${options.csvStats ? options.csvStats : 'none'}
-    CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
-`);
-}
-
-function run(options, batchOp, cb) {
+function create(options) {
     const credentials = new AWS.SharedIniFileCredentials({
         profile: options.profile,
     });
@@ -131,6 +117,29 @@ function run(options, batchOp, cb) {
         },
         maxRetries: 0,
     });
+    return {
+        options,
+        s3,
+    };
+}
+
+function showOptions(batchObj) {
+    const { options } = batchObj;
+    process.stdout.write(`
+    endpoint:            ${options.endpoint}
+    prefix:              ${options.prefix}
+    bucket:              ${options.bucket}
+    workers:             ${options.workers}
+    object count:        ${options.count}
+    object size:         ${options.size ? options.size : 'N/A'}
+    rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
+    CSV output:          ${options.csvStats ? options.csvStats : 'none'}
+    CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
+`);
+}
+
+function run(batchObj, batchOp, cb) {
+    const { options, s3 } = batchObj;
     let successCount = 0;
     let errorCount = 0;
 
@@ -220,5 +229,6 @@ function run(options, batchOp, cb) {
 
 module.exports = {
     showOptions,
+    create,
     run,
 };
