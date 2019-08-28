@@ -29,7 +29,7 @@ function readall(options, cb) {
 
     const readallOp = (s3, n, endSuccess, endError) => {
         const idx = permuteIndex(n, options);
-        const key = `${options.prefix}test-key-${`000000${idx}`.slice(-6)}`;
+        const key = batch.getKey(obj, n);
         s3.getObject({
             Bucket: options.bucket,
             Key: key,

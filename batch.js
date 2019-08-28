@@ -138,6 +138,39 @@ function showOptions(batchObj) {
 `);
 }
 
+function getKey(batchObj, n) {
+    const { options } = batchObj;
+
+    let key;
+    if (options.oneObject) {
+        return `${options.prefix}test-key`;
+    }
+    let componentsOfN = [];
+    let compWidth;
+    if (options.limitPerDelimiter) {
+        const delimiterCount = Math.ceil(
+            Math.log(options.count) / Math.log(options.limitPerDelimiter) - 1);
+        let _n = n;
+        while (_n > 0) {
+            componentsOfN.push(_n % options.limitPerDelimiter);
+            _n = Math.floor(_n / options.limitPerDelimiter);
+        }
+        while (componentsOfN.length <= delimiterCount) {
+            componentsOfN.push(0);
+        }
+        compWidth = Math.ceil(Math.log10(options.limitPerDelimiter));
+    } else {
+        componentsOfN.push(n);
+        compWidth = Math.ceil(Math.log10(options.count));
+    }
+    componentsOfN.reverse();
+    const compMask = Buffer.alloc(compWidth).fill('0').toString();
+    const suffix = componentsOfN.map(comp => {
+        return `${compMask}${comp}`.slice(-compWidth);
+    }).join('/');
+    return `${options.prefix}${suffix}`;
+}
+
 function run(batchObj, batchOp, cb) {
     const { options, s3 } = batchObj;
     let successCount = 0;
@@ -230,5 +263,6 @@ function run(batchObj, batchOp, cb) {
 module.exports = {
     showOptions,
     create,
+    getKey,
     run,
 };

@@ -13,6 +13,9 @@ ingestor.command('ingest')
     .option('--count [n]', 'how many objects total', 100, parseInt)
     .option('--size [n]', 'size of individual objects in bytes', 1000, parseInt)
     .option('--prefix [prefix]', 'key prefix', '')
+    .option('--limit-per-delimiter [limit]',
+            'max number of object to group in a single delimiter range',
+            0, parseInt)
     .option('--rate-limit [n]',
             'limit rate of operations (in op/s)', 0, parseInt)
     .option('--csv-stats [filename]', 'output file for stats in CSV format')
@@ -87,6 +90,9 @@ ingestor.command('readall')
     .option('--endpoint <endpoint>', 'endpoint URL')
     .option('--bucket <bucket>', 'bucket name')
     .option('--prefix <prefix>', 'key prefix')
+    .option('--limit-per-delimiter [limit]',
+            'max number of object to group in a single delimiter range',
+            0, parseInt)
     .option('--profile [profile]', 'aws/credentials profile', 'default')
     .option('--workers [n]', 'how many parallel workers', 10, parseInt)
     .option('--count [n]', 'how many objects total', 100, parseInt)

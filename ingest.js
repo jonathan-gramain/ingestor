@@ -25,12 +25,7 @@ function ingest(options, cb) {
     const body = generateBody(options.size);
 
     const ingestOp = (s3, n, endSuccess, endError) => {
-        let key;
-        if (options.oneObject) {
-            key = `${options.prefix}test-key`;
-        } else {
-            key = `${options.prefix}test-key-${`000000${n}`.slice(-6)}`;
-        }
+        const key = batch.getKey(obj, n);
         s3.putObject({
             Bucket: options.bucket,
             Key: key,
