@@ -1,11 +1,15 @@
 const batch = require('./batch');
 const level = require('level');
 
-function generateBody(size) {
-    const randomString = Math.random().toString(36).slice(2);
+const RANDOM_STRINGS = [];
 
-    return new Array(Math.ceil(size / randomString.length))
-        .fill(randomString)
+for (let i = 0; i < 1000000; ++i) {
+    RANDOM_STRINGS.push(Math.random().toString(36).slice(2));
+}
+
+function generateBody(size) {
+    return new Array(Math.ceil(size / 11)).map(
+        e => RANDOM_STRINGS[Math.floor(Math.random() * RANDOM_STRINGS.length)])
         .join('')
         .slice(0, size);
 }
@@ -19,7 +23,6 @@ function ingest_level(options, cb) {
     batch.showOptions(obj);
 
     const lvl = new level(options.dbPath);
-    const body = generateBody(options.size);
 
     const ingestOp = (s3, n, endSuccess, endError) => {
         const key = batch.getKey(obj, n);
@@ -30,6 +33,7 @@ function ingest_level(options, cb) {
         if (options.batchSize) {
             const levelBatch = [];
             for (let i = 0; i < options.batchSize; ++i) {
+                const body = generateBody(options.size);
                 levelBatch.push({
                     type: 'put',
                     key: `${key}-${i}`,
