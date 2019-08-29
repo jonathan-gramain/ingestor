@@ -103,6 +103,9 @@ function outputCsvLine(stats) {
 }
 
 function create(options) {
+    if (!options.endpoint) {
+        return { options };
+    }
     const credentials = new AWS.SharedIniFileCredentials({
         profile: options.profile,
     });

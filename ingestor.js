@@ -3,6 +3,7 @@ const ingestor = require('commander');
 const ingest = require('./ingest');
 const ingest_mpu = require('./ingest_mpu');
 const readall = require('./readall');
+const ingest_level = require('./ingest_level');
 
 ingestor.version('0.1');
 ingestor.command('ingest')
@@ -130,6 +131,46 @@ ingestor.command('readall')
             process.exit(1);
         }
         readall(options, code => process.exit(code));
+    });
+
+ingestor.command('ingest_level')
+    .option('--db-path <dbPath>', 'path to levelDB database')
+    .option('--workers [n]', 'how many parallel workers', 10, parseInt)
+    .option('--count [n]', 'how many keys total', 100, parseInt)
+    .option('--size [n]', 'size of individual values in bytes', 1000, parseInt)
+    .option('--batch-size [n]', 'number of keys per batch', 0, parseInt)
+    .option('--sync', 'synchronous writes', false)
+    .option('--prefix [prefix]', 'key prefix', '')
+    .option('--limit-per-delimiter [limit]',
+            'max number of object to group in a single delimiter range',
+            0, parseInt)
+    .option('--rate-limit [n]',
+            'limit rate of operations (in op/s)', 0, parseInt)
+    .option('--csv-stats [filename]', 'output file for stats in CSV format')
+    .option('--csv-stats-interval [n]',
+            'interval in seconds between each CSV stats output line',
+            10, parseInt)
+    .action(options => {
+        if (!options.dbPath ||
+            isNaN(options.workers) ||
+            isNaN(options.count) ||
+            isNaN(options.size)) {
+            if (!options.dbPath) {
+                console.error('option --db-path is missing');
+            }
+            if (isNaN(options.workers)) {
+                console.error('value of option --workers must be an integer');
+            }
+            if (isNaN(options.count)) {
+                console.error('value of option --count must be an integer');
+            }
+            if (isNaN(options.size)) {
+                console.error('value of option --size must be an integer');
+            }
+            ingestor.outputHelp();
+            process.exit(1);
+        }
+        ingest_level(options, code => process.exit(code));
     });
 
 const commandName = process.argv[2];
