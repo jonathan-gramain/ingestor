@@ -4,12 +4,12 @@ const level = require('level');
 const RANDOM_STRINGS = [];
 
 for (let i = 0; i < 1000000; ++i) {
-    RANDOM_STRINGS.push(Math.random().toString(36).slice(2));
+    RANDOM_STRINGS.push();
 }
 
 function generateBody(size) {
-    return new Array(Math.ceil(size / 11)).map(
-        e => RANDOM_STRINGS[Math.floor(Math.random() * RANDOM_STRINGS.length)])
+    return new Array(Math.ceil(size / 10)).fill().map(
+        e => Math.random().toString(36).slice(2))
         .join('')
         .slice(0, size);
 }
@@ -49,6 +49,7 @@ function ingest_level(options, cb) {
                 return endSuccess();
             });
         } else {
+            const body = generateBody(options.size);
             lvl.put(key, body, levelOpts, err => {
                 if (err) {
                     console.error(`error during "PUT ${key}":`,
