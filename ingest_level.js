@@ -1,12 +1,6 @@
 const batch = require('./batch');
 const level = require('level');
 
-const RANDOM_STRINGS = [];
-
-for (let i = 0; i < 1000000; ++i) {
-    RANDOM_STRINGS.push();
-}
-
 function generateBody(size) {
     return new Array(Math.ceil(size / 10)).fill().map(
         e => Math.random().toString(36).slice(2))
@@ -24,6 +18,12 @@ function ingest_level(options, cb) {
 
     const lvl = new level(options.dbPath);
 
+    const pregeneratedBodies = [];
+    for (let i = 0, totalSize = 0;
+         i < 1000000 && totalSize < 500000000;
+         ++i, totalSize += options.size) {
+        pregeneratedBodies.push(generateBody(options.size));
+    }
     const ingestOp = (s3, n, endSuccess, endError) => {
         const key = batch.getKey(obj, n);
         const levelOpts = {};
@@ -33,7 +33,8 @@ function ingest_level(options, cb) {
         if (options.batchSize) {
             const levelBatch = [];
             for (let i = 0; i < options.batchSize; ++i) {
-                const body = generateBody(options.size);
+                const body = pregeneratedBodies[
+                    Math.floor(Math.random() * pregeneratedBodies.length)];
                 levelBatch.push({
                     type: 'put',
                     key: `${key}-${i}`,
@@ -49,7 +50,8 @@ function ingest_level(options, cb) {
                 return endSuccess();
             });
         } else {
-            const body = generateBody(options.size);
+            const body = pregeneratedBodies[
+                Math.floor(Math.random() * pregeneratedBodies.length)];
             lvl.put(key, body, levelOpts, err => {
                 if (err) {
                     console.error(`error during "PUT ${key}":`,
