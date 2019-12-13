@@ -2,6 +2,7 @@ const ingestor = require('commander');
 
 const ingest = require('./ingest');
 const ingest_mpu = require('./ingest_mpu');
+const ingest_buckets = require('./ingest_buckets');
 const readall = require('./readall');
 
 ingestor.version('0.1');
@@ -84,6 +85,37 @@ ingestor.command('ingest_mpu')
             process.exit(1);
         }
         ingest_mpu(options, code => process.exit(code));
+    });
+
+ingestor.command('ingest_buckets')
+    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--profile [profile]', 'aws/credentials profile', 'default')
+    .option('--workers [n]', 'how many parallel workers', 10, parseInt)
+    .option('--count [n]', 'how many objects total', 100, parseInt)
+    .option('--prefix [prefix]', 'bucket prefix', '')
+    .option('--rate-limit [n]',
+            'limit rate of operations (in op/s)', 0, parseInt)
+    .option('--csv-stats [filename]', 'output file for stats in CSV format')
+    .option('--csv-stats-interval [n]',
+            'interval in seconds between each CSV stats output line',
+            10, parseInt)
+    .action(options => {
+        if (!options.endpoint ||
+            isNaN(options.workers) ||
+            isNaN(options.count)) {
+            if (!options.endpoint) {
+                console.error('option --endpoint is missing');
+            }
+            if (isNaN(options.workers)) {
+                console.error('value of option --workers must be an integer');
+            }
+            if (isNaN(options.count)) {
+                console.error('value of option --count must be an integer');
+            }
+            ingestor.outputHelp();
+            process.exit(1);
+        }
+        ingest_buckets(options, code => process.exit(code));
     });
 
 ingestor.command('readall')
