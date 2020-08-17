@@ -32,7 +32,7 @@ function ingest(options, cb) {
             const nTags = Math.floor(Math.random() * 50);
             const tagSet = [];
             for (let i = 1; i <= nTags; ++i) {
-                tagSet.push(`Key${i}=Value${i}`);
+                tagSet.push(`TagKey${i}=VeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongTagValue${i}`);
             }
             tags = tagSet.join('&');
         }
