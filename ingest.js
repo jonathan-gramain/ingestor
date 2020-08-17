@@ -20,16 +20,27 @@ function ingest(options, cb) {
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
     del after put:       ${options.deleteAfterPut ? 'yes' : 'no'}
+    add tags:            ${options.addTags ? 'yes' : 'no'}
 `);
 
     const body = generateBody(options.size);
 
     const ingestOp = (s3, n, endSuccess, endError) => {
         const key = batch.getKey(obj, n);
+        let tags = '';
+        if (options.addTags) {
+            const nTags = Math.floor(Math.random() * 50);
+            const tagSet = [];
+            for (let i = 1; i <= nTags; ++i) {
+                tagSet.push(`Key${i}=Value${i}`);
+            }
+            tags = tagSet.join('&');
+        }
         s3.putObject({
             Bucket: options.bucket,
             Key: key,
             Body: body,
+            Tagging: tags,
         }, err => {
             if (err) {
                 console.error(`error during "PUT ${options.bucket}/${key}":`,

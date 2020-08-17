@@ -25,6 +25,7 @@ ingestor.command('ingest')
             10, parseInt)
     .option('--one-object', 'hammer on a single object', false)
     .option('--delete-after-put', 'send deletes after objects are put', false)
+    .option('--add-tags', 'add a random number of tags', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
