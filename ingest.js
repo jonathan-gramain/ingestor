@@ -26,44 +26,50 @@ function ingest(options, cb) {
     const body = generateBody(options.size);
 
     const ingestOp = (s3, n, endSuccess, endError) => {
-        const key = batch.getKey(obj, n);
-        let tags = '';
-        if (options.addTags) {
-            const nTags = Math.floor(Math.random() * 50);
-            const tagSet = [];
-            for (let i = 1; i <= nTags; ++i) {
-                tagSet.push(`TagKey${i}=VeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongTagValue${i}`);
+        batch.getKey(obj, n, key => {
+            let tags = '';
+            if (options.addTags) {
+                const nTags = Math.floor(Math.random() * 50);
+                const tagSet = [];
+                for (let i = 1; i <= nTags; ++i) {
+                    tagSet.push(`TagKey${i}=VeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongTagValue${i}`);
+                }
+                tags = tagSet.join('&');
             }
-            tags = tagSet.join('&');
-        }
-        s3.putObject({
-            Bucket: options.bucket,
-            Key: key,
-            Body: body,
-            Tagging: tags,
-        }, err => {
-            if (err) {
-                console.error(`error during "PUT ${options.bucket}/${key}":`,
-                              err.message);
-                return endError();
-            }
-            if (!options.deleteAfterPut) {
-                return endSuccess();
-            }
-            return s3.deleteObject({
+            s3.putObject({
                 Bucket: options.bucket,
                 Key: key,
+                Body: body,
+                Tagging: tags,
             }, err => {
                 if (err) {
-                    console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                    console.error(`error during "PUT ${options.bucket}/${key}":`,
                                   err.message);
                     return endError();
                 }
-                return endSuccess();
+                if (!options.deleteAfterPut) {
+                    return endSuccess();
+                }
+                return s3.deleteObject({
+                    Bucket: options.bucket,
+                    Key: key,
+                }, err => {
+                    if (err) {
+                        console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                                      err.message);
+                        return endError();
+                    }
+                    return endSuccess();
+                });
             });
         });
     };
-    batch.run(obj, ingestOp, cb);
+    batch.init(obj, err => {
+        if (err) {
+            return cb(err);
+        }
+        return batch.run(obj, ingestOp, cb);
+    });
 }
 
 module.exports = ingest;

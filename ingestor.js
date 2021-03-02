@@ -26,6 +26,7 @@ ingestor.command('ingest')
     .option('--one-object', 'hammer on a single object', false)
     .option('--delete-after-put', 'send deletes after objects are put', false)
     .option('--add-tags', 'add a random number of tags', false)
+    .option('--keys-from-file [path]', 'read keys from file')
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
@@ -138,6 +139,7 @@ ingestor.command('readall')
     .option('--random',
             'randomize reads, while still reading all keys exactly once',
             false)
+    .option('--keys-from-file [path]', 'read keys from file')
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||

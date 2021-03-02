@@ -29,20 +29,26 @@ function readall(options, cb) {
 
     const readallOp = (s3, n, endSuccess, endError) => {
         const idx = permuteIndex(n, options);
-        const key = batch.getKey(obj, n);
-        s3.getObject({
-            Bucket: options.bucket,
-            Key: key,
-        }, err => {
-            if (err) {
-                console.error(`error during "GET ${options.bucket}/${key}":`,
-                              err.message);
-                return endError();
-            }
-            return endSuccess();
+        batch.getKey(obj, n, key => {
+            s3.getObject({
+                Bucket: options.bucket,
+                Key: key,
+            }, err => {
+                if (err) {
+                    console.error(`error during "GET ${options.bucket}/${key}":`,
+                                  err.message);
+                    return endError();
+                }
+                return endSuccess();
+            });
         });
     };
-    batch.run(obj, readallOp, cb);
+    batch.init(obj, err => {
+        if (err) {
+            return cb(err);
+        }
+        batch.run(obj, readallOp, cb);
+    });
 }
 
 module.exports = readall;
