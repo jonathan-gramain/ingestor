@@ -171,6 +171,12 @@ function ingest_mpu(options, cb) {
         },
         done => {
             partsInfo.sort((p1, p2) => p1.PartNumber < p2.PartNumber ? -1 : 1);
+            if (!options.complete) {
+                console.log('Key:', key);
+                console.log('UploadId:', uploadId);
+                console.log('Parts:', JSON.stringify({ Parts: partsInfo }));
+                return done();
+            }
             s3.completeMultipartUpload({
                 Bucket: options.bucket,
                 Key: key,
