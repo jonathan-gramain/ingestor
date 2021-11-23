@@ -27,6 +27,8 @@ ingestor.command('ingest')
     .option('--delete-after-put', 'send deletes after objects are put', false)
     .option('--add-tags', 'add a random number of tags', false)
     .option('--keys-from-file [path]', 'read keys from file')
+    .option('--mpu-parts [nbparts]', 'create MPU objects with this many parts',
+            0, parseInt)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
