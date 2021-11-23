@@ -62,14 +62,22 @@ function ingest(options, cb) {
             };
             return partDone(null, partInfo);
         }), (err, partsInfo) => next(err, uploadId, partsInfo)),
-        (uploadId, partsInfo, next) => s3.completeMultipartUpload({
-            Bucket: bucket,
-            Key: key,
-            UploadId: uploadId,
-            MultipartUpload: {
-                Parts: partsInfo,
-            },
-        }, next),
+        (uploadId, partsInfo, next) => {
+            let repeat = 1;
+            if (options.mpuFuzzRepeatCompleteProb) {
+                while (Math.random() < options.mpuFuzzRepeatCompleteProb) {
+                    repeat += 1;
+                }
+            }
+            async.times(repeat, (i, completeDone) => s3.completeMultipartUpload({
+                Bucket: bucket,
+                Key: key,
+                UploadId: uploadId,
+                MultipartUpload: {
+                    Parts: partsInfo,
+                },
+            }, completeDone), next);
+        },
     ], err => {
         if (err) {
             console.error(`error during completeMultipartUpload for ${options.bucket}/${key}:`,

@@ -29,6 +29,10 @@ ingestor.command('ingest')
     .option('--keys-from-file [path]', 'read keys from file')
     .option('--mpu-parts [nbparts]', 'create MPU objects with this many parts',
             0, parseInt)
+    .option('--mpu-fuzz-repeat-complete-prob [probability]',
+            'repeat an extra time the complete-mpu requests with this probability ' +
+            '(it can lead to more than one extra complete-mpu for the same request)',
+            0, parseFloat)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
