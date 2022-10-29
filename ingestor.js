@@ -194,6 +194,8 @@ ingestor.command('ingest_level')
     .option('--csv-stats-interval [n]',
             'interval in seconds between each CSV stats output line',
             10, parseInt)
+    .option('--hash-keys', 'hash keys after the prefix with a MD5 sum to make them unordered', false)
+    .option('--verbose', 'increase verbosity', false)
     .action(options => {
         if (!options.dbPath ||
             isNaN(options.workers) ||
