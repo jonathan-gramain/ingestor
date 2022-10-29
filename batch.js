@@ -2,6 +2,7 @@ const async = require('async');
 const http = require('http');
 const fs = require('fs');
 const AWS = require('aws-sdk');
+const lineReader = require('line-reader');
 
 const STATUS_BAR_LENGTH = 60;
 const STATUS_BAR_TPL =
@@ -32,6 +33,7 @@ const latenciesWindow = [];
 let latenciesWindowPos = 0;
 
 let csvStatsFile;
+let keysFromFileReader;
 
 function queryStatsWindow() {
     return statsWindow[statsWindowIndex];
@@ -138,13 +140,12 @@ function showOptions(batchObj) {
     rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
     CSV output:          ${options.csvStats ? options.csvStats : 'none'}
     CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
+    keys from file:      ${options.keysFromFile ? options.keysFromFile : 'none'}
 `);
 }
 
-function getKey(batchObj, n) {
+function getGeneratedKey(batchObj, n) {
     const { options } = batchObj;
-
-    let key;
     if (options.oneObject) {
         return `${options.prefix}test-key`;
     }
@@ -172,6 +173,42 @@ function getKey(batchObj, n) {
         return `${compMask}${comp}`.slice(-compWidth);
     }).join('/');
     return `${options.prefix}${suffix}`;
+}
+
+function openKeysFromFileReader(batchObj, cb) {
+    const { options } = batchObj;
+    lineReader.open(options.keysFromFile, (err, reader) => {
+        if (err) {
+            console.error('cannot open keys file:', err);
+            return cb(err);
+        }
+        keysFromFileReader = reader;
+        return cb();
+    });
+}
+
+function init(batchObj, cb) {
+    const { options } = batchObj;
+    if (options.keysFromFile) {
+        return openKeysFromFileReader(batchObj, cb);
+    }
+    return process.nextTick(cb);
+}
+
+function getKey(batchObj, n, cb) {
+    const { options } = batchObj;
+
+    let key;
+    if (keysFromFileReader && keysFromFileReader.hasNextLine()) {
+        return keysFromFileReader.nextLine((err, line) => {
+            if (err) {
+                console.error('error reading next key from file:', err);
+                return cb(getGeneratedKey(batchObj, n));
+            }
+            return cb(line.trimRight());
+        });
+    }
+    return cb(getGeneratedKey(batchObj, n));
 }
 
 function run(batchObj, batchOp, cb) {
@@ -259,13 +296,18 @@ function run(batchObj, batchOp, cb) {
             fs.closeSync(csvStatsFile);
             clearInterval(csvStatsInterval);
         }
-        cb();
+        if (keysFromFileReader) {
+            keysFromFileReader.close(cb);
+        } else {
+            cb();
+        }
     });
 }
 
 module.exports = {
     showOptions,
     create,
+    init,
     getKey,
     run,
 };

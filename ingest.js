@@ -1,3 +1,4 @@
+const async = require('async');
 const batch = require('./batch');
 
 function generateBody(size) {
@@ -20,39 +21,126 @@ function ingest(options, cb) {
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
     del after put:       ${options.deleteAfterPut ? 'yes' : 'no'}
+    add tags:            ${options.addTags ? 'yes' : 'no'}
+    MPU parts:           ${options.mpuParts ? options.mpuParts : 'N/A'}
 `);
 
-    const body = generateBody(options.size);
+
+    const putObject = (s3, bucket, key, body, tags, cb) => s3.putObject({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        Tagging: tags,
+    }, cb);
+
+    const putMPU = (s3, bucket, key, body, tags, cb) => async.waterfall([
+        next => s3.createMultipartUpload({
+            Bucket: bucket,
+            Key: key,
+        }, (err, data) => {
+            if (err) {
+                console.error(`error during createMultipartUpload for ${bucket}/${key}:`, err.message);
+                return next(err);
+            }
+            return next(null, data.UploadId);
+        }),
+        (uploadId, next) => async.timesLimit(options.mpuParts, 4, (n, partDone) => s3.uploadPart({
+            Bucket: bucket,
+            Key: key,
+            UploadId: uploadId,
+            PartNumber: n + 1,
+            Body: body[n],
+        }, (err, partData) => {
+            if (err) {
+                console.error(`error during upload part for ${options.bucket}/${key}:`,
+                              err.message);
+                return partDone(err);
+            }
+            const partInfo = {
+                PartNumber: n + 1,
+                ETag: partData.ETag,
+            };
+            return partDone(null, partInfo);
+        }), (err, partsInfo) => next(err, uploadId, partsInfo)),
+        (uploadId, partsInfo, next) => {
+            let repeat = 1;
+            if (options.mpuFuzzRepeatCompleteProb) {
+                while (Math.random() < options.mpuFuzzRepeatCompleteProb) {
+                    repeat += 1;
+                }
+            }
+            async.times(repeat, (i, completeDone) => s3.completeMultipartUpload({
+                Bucket: bucket,
+                Key: key,
+                UploadId: uploadId,
+                MultipartUpload: {
+                    Parts: partsInfo,
+                },
+            }, completeDone), next);
+        },
+    ], err => {
+        if (err) {
+            console.error(`error during completeMultipartUpload for ${options.bucket}/${key}:`,
+                          err.message);
+        }
+        return cb(err);
+    });
+    let body;
+    let putFunc;
+    if (options.mpuParts) {
+        const partSize = Math.ceil(options.size / options.mpuParts);
+        body = [];
+        let remainingSize = options.size;
+        while (remainingSize > 0) {
+            body.push(generateBody(Math.min(partSize, remainingSize)));
+            remainingSize -= partSize;
+        }
+        putFunc = putMPU;
+    } else {
+        body = generateBody(options.size);
+        putFunc = putObject;
+    }
 
     const ingestOp = (s3, n, endSuccess, endError) => {
-        const key = batch.getKey(obj, n);
-        s3.putObject({
-            Bucket: options.bucket,
-            Key: key,
-            Body: body,
-        }, err => {
-            if (err) {
-                console.error(`error during "PUT ${options.bucket}/${key}":`,
-                              err.message);
-                return endError();
+        batch.getKey(obj, n, key => {
+            let tags = '';
+            if (options.addTags) {
+                const nTags = Math.floor(Math.random() * 50);
+                const tagSet = [];
+                for (let i = 1; i <= nTags; ++i) {
+                    tagSet.push(`TagKey${i}=VeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongTagValue${i}`);
+                }
+                tags = tagSet.join('&');
             }
-            if (!options.deleteAfterPut) {
-                return endSuccess();
-            }
-            return s3.deleteObject({
-                Bucket: options.bucket,
-                Key: key,
-            }, err => {
+            putFunc(s3, options.bucket, key, body, tags, err => {
                 if (err) {
-                    console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                    console.error(`error during "PUT ${options.bucket}/${key}":`,
                                   err.message);
                     return endError();
                 }
-                return endSuccess();
+                if (!options.deleteAfterPut) {
+                    return endSuccess();
+                }
+                return s3.deleteObject({
+                    Bucket: options.bucket,
+                    Key: key,
+                }, err => {
+                    if (err) {
+                        console.error(`error during "DELETE ${options.bucket}/${key}":`,
+                                      err.message);
+                        return endError();
+                    }
+                    return endSuccess();
+                });
             });
         });
     };
-    batch.run(obj, ingestOp, cb);
+    batch.init(obj, err => {
+        if (err) {
+            return cb(err);
+        }
+        return batch.run(obj, ingestOp, cb);
+    });
 }
 
 module.exports = ingest;
