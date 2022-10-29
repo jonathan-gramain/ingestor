@@ -1,5 +1,6 @@
 const async = require('async');
 const http = require('http');
+const https = require('https');
 const AWS = require('aws-sdk');
 
 const STATUS_BAR_LENGTH = 60;
@@ -104,15 +105,20 @@ function ingest_mpu(options, cb) {
     const body = generateBody(options.size);
     const s3 = new AWS.S3({
         endpoint: options.endpoint,
+        region: 'eu-central-1',
         credentials,
         s3ForcePathStyle: true,
         signatureVersion: 'v4',
+        useHttps: options.endpoint.startsWith('https:'),
         httpOptions: {
-            agent: new http.Agent({ keepAlive: true }),
+            agent: options.endpoint.startsWith('https:') ?
+                new https.Agent({ keepAlive: true }) :
+                new http.Agent({ keepAlive: true }),
             timeout: 0,
         },
         maxRetries: 0,
     });
+
     let successCount = 0;
     let errorCount = 0;
     function updateStatusBar() {
