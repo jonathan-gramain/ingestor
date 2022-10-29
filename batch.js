@@ -1,4 +1,5 @@
 const async = require('async');
+const crypto = require('crypto');
 const http = require('http');
 const fs = require('fs');
 const AWS = require('aws-sdk');
@@ -137,6 +138,7 @@ function showOptions(batchObj) {
     rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
     CSV output:          ${options.csvStats ? options.csvStats : 'none'}
     CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
+    hash keys:           ${options.hashKeys ? 'yes' : 'no'}
     keys from file:      ${options.keysFromFile ? options.keysFromFile : 'none'}
 `);
 }
@@ -166,9 +168,15 @@ function getGeneratedKey(batchObj, n) {
     }
     componentsOfN.reverse();
     const compMask = Buffer.alloc(compWidth).fill('0').toString();
-    const suffix = componentsOfN.map(comp => {
+    let suffixComponents = componentsOfN.map(comp => {
         return `${compMask}${comp}`.slice(-compWidth);
-    }).join('/');
+    });
+    if (options.hashKeys) {
+        suffixComponents = suffixComponents.map(
+            keyComponent => crypto.createHash('md5').update(keyComponent).digest().toString('hex')
+        );
+    }
+    const suffix = suffixComponents.join('/');
     return `${options.prefix}${suffix}`;
 }
 
@@ -195,17 +203,24 @@ function init(batchObj, cb) {
 function getKey(batchObj, n, cb) {
     const { options } = batchObj;
 
-    let key;
     if (keysFromFileReader && keysFromFileReader.hasNextLine()) {
         return keysFromFileReader.nextLine((err, line) => {
             if (err) {
                 console.error('error reading next key from file:', err);
                 return cb(getGeneratedKey(batchObj, n));
             }
-            return cb(line.trimRight());
+            const key = line.trimRight();
+            if (options.verbose) {
+                console.log(`next key: ${key}`);
+            }
+            return cb(key);
         });
     }
-    return cb(getGeneratedKey(batchObj, n));
+    const key = getGeneratedKey(batchObj, n);
+    if (options.verbose) {
+        console.log(`next key: ${key}`);
+    }
+    return cb(key);
 }
 
 function run(batchObj, batchOp, cb) {

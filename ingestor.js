@@ -26,6 +26,7 @@ ingestor.command('ingest')
     .option('--one-object', 'hammer on a single object', false)
     .option('--delete-after-put', 'send deletes after objects are put', false)
     .option('--add-tags', 'add a random number of tags', false)
+    .option('--hash-keys', 'hash keys after the prefix with a MD5 sum to make them unordered', false)
     .option('--keys-from-file [path]', 'read keys from file')
     .option('--mpu-parts [nbparts]', 'create MPU objects with this many parts',
             0, parseInt)
@@ -33,6 +34,7 @@ ingestor.command('ingest')
             'repeat an extra time the complete-mpu requests with this probability ' +
             '(it can lead to more than one extra complete-mpu for the same request)',
             0, parseFloat)
+    .option('--verbose', 'increase verbosity', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
