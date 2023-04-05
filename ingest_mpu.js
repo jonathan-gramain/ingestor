@@ -183,6 +183,20 @@ function ingest_mpu(options, cb) {
                 console.log('Parts:', JSON.stringify({ Parts: partsInfo }));
                 return done();
             }
+            if (options.abort) {
+                return s3.abortMultipartUpload({
+                    Bucket: options.bucket,
+                    Key: key,
+                    UploadId: uploadId,
+                }, err => {
+                    if (err) {
+                        console.error(`error during abortMultipartUpload for ` +
+                                      `${options.bucket}/${key}:`,
+                                      err.message);
+                    }
+                    return done(err);
+                });
+            }
             s3.completeMultipartUpload({
                 Bucket: options.bucket,
                 Key: key,

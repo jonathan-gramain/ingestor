@@ -71,6 +71,7 @@ ingestor.command('ingest_mpu')
     .option('--size [n]', 'size of individual parts in bytes', 1000, parseInt)
     .option('--prefix [prefix]', 'key prefix', '')
     .option('--no-complete', 'do not complete the MPU', false)
+    .option('--abort', 'abort the MPU instead of completing it', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
