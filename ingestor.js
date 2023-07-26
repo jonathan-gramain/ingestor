@@ -4,6 +4,8 @@ const ingest = require('./ingest');
 const ingest_mpu = require('./ingest_mpu');
 const ingest_buckets = require('./ingest_buckets');
 const readall = require('./readall');
+const deleteall = require('./deleteall');
+const deleteversions = require('./deleteversions');
 
 ingestor.version('0.1');
 ingestor.command('ingest')
@@ -175,6 +177,87 @@ ingestor.command('readall')
             process.exit(1);
         }
         readall(options, code => process.exit(code));
+    });
+
+ingestor.command('deleteall')
+    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--bucket <bucket>', 'bucket name')
+    .option('--prefix <prefix>', 'key prefix')
+    .option('--limit-per-delimiter [limit]',
+            'max number of object to group in a single delimiter range',
+            0, parseInt)
+    .option('--profile [profile]', 'aws/credentials profile', 'default')
+    .option('--workers [n]', 'how many parallel workers', 10, parseInt)
+    .option('--count [n]', 'how many objects total', 100, parseInt)
+    .option('--rate-limit [n]',
+            'limit rate of operations (in op/s)', 0, parseInt)
+    .option('--csv-stats [filename]', 'output file for stats in CSV format')
+    .option('--csv-stats-interval [n]',
+            'interval in seconds between each CSV stats output line',
+            10, parseInt)
+    .option('--random',
+            'randomize deletes, while still deleting all keys exactly once',
+            false)
+    .option('--keys-from-file [path]', 'read keys from file')
+    .action(options => {
+        if (!options.endpoint ||
+            !options.bucket ||
+            !options.prefix ||
+            isNaN(options.workers) ||
+            isNaN(options.count)) {
+            if (!options.endpoint) {
+                console.error('option --endpoint is missing');
+            }
+            if (!options.bucket) {
+                console.error('option --bucket is missing');
+            }
+            if (!options.prefix) {
+                console.error('option --prefix is missing');
+            }
+            if (isNaN(options.workers)) {
+                console.error('value of option --workers must be an integer');
+            }
+            if (isNaN(options.count)) {
+                console.error('value of option --count must be an integer');
+            }
+            ingestor.outputHelp();
+            process.exit(1);
+        }
+        deleteall(options, code => process.exit(code));
+    });
+
+ingestor.command('deleteversions')
+    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--bucket <bucket>', 'bucket name')
+    .option('--prefix [prefix]', 'key prefix')
+    .option('--profile [profile]', 'aws/credentials profile', 'default')
+    .option('--workers [n]', 'how many parallel workers', 10, parseInt)
+    .option('--rate-limit [n]',
+            'limit rate of operations (in op/s)', 0, parseInt)
+    .option('--csv-stats [filename]', 'output file for stats in CSV format')
+    .option('--csv-stats-interval [n]',
+            'interval in seconds between each CSV stats output line',
+            10, parseInt)
+    .option('--random',
+            'randomize deletes, while still deleting all keys exactly once',
+            false)
+    .action(options => {
+        if (!options.endpoint ||
+            !options.bucket ||
+            isNaN(options.workers)) {
+            if (!options.endpoint) {
+                console.error('option --endpoint is missing');
+            }
+            if (!options.bucket) {
+                console.error('option --bucket is missing');
+            }
+            if (isNaN(options.workers)) {
+                console.error('value of option --workers must be an integer');
+            }
+            ingestor.outputHelp();
+            process.exit(1);
+        }
+        deleteversions(options, code => process.exit(code));
     });
 
 const commandName = process.argv[2];
