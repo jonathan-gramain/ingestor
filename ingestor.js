@@ -135,7 +135,7 @@ ingestor.command('ingest_buckets')
 ingestor.command('readall')
     .option('--endpoint <endpoint>', 'endpoint URL')
     .option('--bucket <bucket>', 'bucket name')
-    .option('--prefix <prefix>', 'key prefix')
+    .option('--prefix [prefix]', 'key prefix')
     .option('--limit-per-delimiter [limit]',
             'max number of object to group in a single delimiter range',
             0, parseInt)
@@ -155,7 +155,6 @@ ingestor.command('readall')
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
-            !options.prefix ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
             if (!options.endpoint) {
@@ -163,9 +162,6 @@ ingestor.command('readall')
             }
             if (!options.bucket) {
                 console.error('option --bucket is missing');
-            }
-            if (!options.prefix) {
-                console.error('option --prefix is missing');
             }
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');
@@ -182,7 +178,7 @@ ingestor.command('readall')
 ingestor.command('deleteall')
     .option('--endpoint <endpoint>', 'endpoint URL')
     .option('--bucket <bucket>', 'bucket name')
-    .option('--prefix <prefix>', 'key prefix')
+    .option('--prefix [prefix]', 'key prefix')
     .option('--limit-per-delimiter [limit]',
             'max number of object to group in a single delimiter range',
             0, parseInt)
@@ -202,7 +198,6 @@ ingestor.command('deleteall')
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
-            !options.prefix ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
             if (!options.endpoint) {
@@ -210,9 +205,6 @@ ingestor.command('deleteall')
             }
             if (!options.bucket) {
                 console.error('option --bucket is missing');
-            }
-            if (!options.prefix) {
-                console.error('option --prefix is missing');
             }
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');

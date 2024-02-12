@@ -33,8 +33,9 @@ let statsWindowIndex = 0;
 const latenciesWindow = [];
 let latenciesWindowPos = 0;
 
-let csvStatsFile;
-let keysFromFileReader;
+let csvStatsFile = null;
+let keysFromFileReader = null;
+let keyList = null;
 
 function queryStatsWindow() {
     return statsWindow[statsWindowIndex];
@@ -192,10 +193,49 @@ function openKeysFromFileReader(batchObj, cb) {
     });
 }
 
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const randIndex = Math.trunc(Math.random() * (i + 1));
+        const randIndexVal = array[randIndex];
+        array[randIndex] = array[i];
+        array[i] = randIndexVal;
+    }
+}
+
+
+
 function init(batchObj, cb) {
     const { options } = batchObj;
     if (options.keysFromFile) {
-        return openKeysFromFileReader(batchObj, cb);
+        return openKeysFromFileReader(batchObj, err => {
+            if (err) {
+                return cb(err);
+            }
+            if (!options.random) {
+                return cb();
+            }
+            keyList = [];
+            return async.whilst(
+                () => keysFromFileReader.hasNextLine(),
+                next => keysFromFileReader.nextLine((err, line) => {
+                    if (err) {
+                        console.error('error reading next key from file:', err);
+                        return next(err);
+                    }
+                    const key = line.trimRight();
+                    keyList.push(key);
+                    next();
+                }),
+                err => {
+                    if (err) {
+                        return cb(err);
+                    }
+                    shuffleArray(keyList);
+                    keysFromFileReader = null;
+                    return cb();
+                }
+            );
+        });
     }
     return process.nextTick(cb);
 }
@@ -203,24 +243,39 @@ function init(batchObj, cb) {
 function getKey(batchObj, n, cb) {
     const { options } = batchObj;
 
-    if (keysFromFileReader && keysFromFileReader.hasNextLine()) {
-        return keysFromFileReader.nextLine((err, line) => {
-            if (err) {
-                console.error('error reading next key from file:', err);
-                return cb(getGeneratedKey(batchObj, n));
+    async.waterfall([
+        next => {
+            if (keysFromFileReader && !keysFromFileReader.hasNextLine()) {
+                return openKeysFromFileReader(batchObj, next);
             }
-            const key = line.trimRight();
-            if (options.verbose) {
-                console.log(`next key: ${key}`);
+            return next();
+        },
+        next => {
+            if (keysFromFileReader) {
+                return keysFromFileReader.nextLine((err, line) => {
+                    if (err) {
+                        console.error('error reading next key from file:', err);
+                        return next(err);
+                    }
+                    const key = line.trimRight();
+                    return next(null, key);
+                });
             }
-            return cb(key);
-        });
-    }
-    const key = getGeneratedKey(batchObj, n);
-    if (options.verbose) {
-        console.log(`next key: ${key}`);
-    }
-    return cb(key);
+            if (keyList) {
+                return next(null, keyList[n % keyList.length]);
+            }
+            const key = getGeneratedKey(batchObj, n);
+            return next(null, key);
+        },
+    ], (err, key) => {
+        if (err) {
+            process.exit(1);
+        }
+        if (options.verbose) {
+            console.log(`next key: ${key}`);
+        }
+        return cb(key);
+    });
 }
 
 function run(batchObj, batchOp, cb) {
