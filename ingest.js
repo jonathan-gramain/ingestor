@@ -23,6 +23,7 @@ function ingest(options, cb) {
     del after put:       ${options.deleteAfterPut ? 'yes' : 'no'}
     add tags:            ${options.addTags ? 'yes' : 'no'}
     MPU parts:           ${options.mpuParts ? options.mpuParts : 'N/A'}
+    random:              ${options.random ? 'yes' : 'no'}
 `);
 
 

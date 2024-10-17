@@ -36,6 +36,7 @@ ingestor.command('ingest')
             'repeat an extra time the complete-mpu requests with this probability ' +
             '(it can lead to more than one extra complete-mpu for the same request)',
             0, parseFloat)
+    .option('--random', 'randomize keys when reading from a file', false)
     .option('--verbose', 'increase verbosity', false)
     .action(options => {
         if (!options.endpoint ||
