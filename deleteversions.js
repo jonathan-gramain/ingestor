@@ -24,28 +24,56 @@ function permuteIndex(n, options) {
 function deleteversions(options, cb) {
     const obj = batch.create(options);
     const allKeys = [];
+    let curBatch = [];
 
     batch.showOptions(obj);
 
     console.log(`
     random:          ${options.random ? 'yes' : 'no'}
+    batchsize:       ${options.batchSize ? options.batchSize : 'no batching'}
 `);
 
     const deleteversionsOp = (s3, n, endSuccess, endError) => {
         const idx = permuteIndex(n, options);
         const { Key, VersionId } = allKeys[idx];
-        s3.deleteObject({
-            Bucket: options.bucket,
-            Key,
-            VersionId,
-        }, err => {
-            if (err) {
-                console.error(`error during "DELETE ${options.bucket}/${Key}?versionId=${VersionId}":`,
-                              err.message);
-                return endError();
+        if (options.batchSize) {
+            curBatch.push({
+                Key,
+                VersionId,
+            });
+            if (curBatch.length >= options.batchSize) {
+                const batch = curBatch;
+                curBatch = [];
+
+                s3.deleteObjects({
+                    Bucket: options.bucket,
+                    Delete: {
+                        Objects: batch,
+                    },
+                }, err => {
+                    if (err) {
+                        console.error(`error during batch delete: ${err.message}`);
+                        return endError();
+                    }
+                    return endSuccess();
+                });
+            } else {
+                return endSuccess();
             }
-            return endSuccess();
-        });
+        } else {
+            s3.deleteObject({
+                Bucket: options.bucket,
+                Key,
+                VersionId,
+            }, err => {
+                if (err) {
+                    console.error(`error during "DELETE ${options.bucket}/${Key}?versionId=${VersionId}":`,
+                                  err.message);
+                    return endError();
+                }
+                return endSuccess();
+            });
+        }
     };
     batch.init(obj, err => {
         if (err) {

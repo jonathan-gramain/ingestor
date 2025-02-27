@@ -234,6 +234,8 @@ ingestor.command('deleteversions')
     .option('--random',
             'randomize deletes, while still deleting all keys exactly once',
             false)
+    .option('--batch-size [count]',
+            'size of individual batches in number of objects (default is no batching)')
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
