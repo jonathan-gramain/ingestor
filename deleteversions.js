@@ -31,7 +31,13 @@ function deleteversions(options, cb) {
     console.log(`
     random:          ${options.random ? 'yes' : 'no'}
     batchsize:       ${options.batchSize ? options.batchSize : 'no batching'}
+    bypass governance retention: ${options.bypassGovernanceRetention ? 'yes' : 'no'}
 `);
+
+    const extraDeleteOpts = {};
+    if (options.bypassGovernanceRetention) {
+        extraDeleteOpts.BypassGovernanceRetention = true;
+    }
 
     const deleteversionsOp = (s3, n, endSuccess, endError) => {
         const idx = permuteIndex(n, options);
@@ -45,12 +51,12 @@ function deleteversions(options, cb) {
                 const batch = curBatch;
                 curBatch = [];
 
-                s3.deleteObjects({
+                s3.deleteObjects(Object.assign({
                     Bucket: options.bucket,
                     Delete: {
                         Objects: batch,
                     },
-                }, err => {
+                }, extraDeleteOpts), err => {
                     if (err) {
                         console.error(`error during batch delete: ${err.message}`);
                         return endError();
@@ -61,11 +67,11 @@ function deleteversions(options, cb) {
                 return endSuccess();
             }
         } else {
-            s3.deleteObject({
+            s3.deleteObject(Object.assign({
                 Bucket: options.bucket,
                 Key,
                 VersionId,
-            }, err => {
+            }, extraDeleteOpts), err => {
                 if (err) {
                     console.error(`error during "DELETE ${options.bucket}/${Key}?versionId=${VersionId}":`,
                                   err.message);

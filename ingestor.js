@@ -38,6 +38,7 @@ ingestor.command('ingest')
             0, parseFloat)
     .option('--random', 'randomize keys when reading from a file', false)
     .option('--verbose', 'increase verbosity', false)
+    .option('--object-lock', 'lock ingested objects for one year in GOVERNANCE mode (the bucket must have object-lock enabled)', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
@@ -236,6 +237,7 @@ ingestor.command('deleteversions')
             false)
     .option('--batch-size [count]',
             'size of individual batches in number of objects (default is no batching)')
+    .option('--bypass-governance-retention', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||

@@ -24,21 +24,30 @@ function ingest(options, cb) {
     add tags:            ${options.addTags ? 'yes' : 'no'}
     MPU parts:           ${options.mpuParts ? options.mpuParts : 'N/A'}
     random:              ${options.random ? 'yes' : 'no'}
+    object lock:         ${options.objectLock ? 'enabled' : 'disabled'}
 `);
 
+    const extraPutOpts = {};
+    if (options.objectLock) {
+        // expire in one year from now
+        const lockExpiration = new Date();
+        lockExpiration.setYear(lockExpiration.getFullYear() + 1);
+        extraPutOpts.ObjectLockMode = 'GOVERNANCE';
+        extraPutOpts.ObjectLockRetainUntilDate = lockExpiration;
+    }
 
-    const putObject = (s3, bucket, key, body, tags, cb) => s3.putObject({
+    const putObject = (s3, bucket, key, body, tags, cb) => s3.putObject(Object.assign({
         Bucket: bucket,
         Key: key,
         Body: body,
         Tagging: tags,
-    }, cb);
+    }, extraPutOpts), cb);
 
     const putMPU = (s3, bucket, key, body, tags, cb) => async.waterfall([
-        next => s3.createMultipartUpload({
+        next => s3.createMultipartUpload(Object.assign({
             Bucket: bucket,
             Key: key,
-        }, (err, data) => {
+        }, extraPutOpts), (err, data) => {
             if (err) {
                 console.error(`error during createMultipartUpload for ${bucket}/${key}:`, err.message);
                 return next(err);
