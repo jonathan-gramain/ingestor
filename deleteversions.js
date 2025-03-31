@@ -85,12 +85,12 @@ function deleteversions(options, cb) {
         if (err) {
             return cb(err);
         }
-        const { s3, options } = obj;
+        const { s3s, options } = obj;
         let KeyMarker = null;
         let VersionIdMarker = null;
         console.log('listing object versions');
         async.doWhilst(
-            done => s3.listObjectVersions({
+            done => s3s[0].listObjectVersions({
                 Bucket: options.bucket,
                 Prefix: options.prefix || undefined,
                 MaxKeys: LISTING_LIMIT,
