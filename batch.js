@@ -111,7 +111,6 @@ function create(options) {
     const credentials = new AWS.SharedIniFileCredentials({
         profile: options.profile,
     });
-    console.log('ENDPOINT', options.endpoint);
     const s3s = options.endpoint.map(endpoint => new AWS.S3({
         endpoint,
         credentials,
