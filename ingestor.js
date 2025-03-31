@@ -1,4 +1,4 @@
-const ingestor = require('commander');
+const { program: ingestor } = require('commander');
 
 const ingest = require('./ingest');
 const ingest_mpu = require('./ingest_mpu');
@@ -9,7 +9,7 @@ const deleteversions = require('./deleteversions');
 
 ingestor.version('0.1');
 ingestor.command('ingest')
-    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--endpoint <endpoint...>', 'endpoint URL(s)')
     .option('--bucket <bucket>', 'bucket name')
     .option('--profile [profile]', 'aws/credentials profile', 'default')
     .option('--workers [n]', 'how many parallel workers', 10, parseInt)
@@ -40,12 +40,12 @@ ingestor.command('ingest')
     .option('--verbose', 'increase verbosity', false)
     .option('--object-lock', 'lock ingested objects for one year in GOVERNANCE mode (the bucket must have object-lock enabled)', false)
     .action(options => {
-        if (!options.endpoint ||
+        if (options.endpoint.length === 0 ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.count) ||
             isNaN(options.size)) {
-            if (!options.endpoint) {
+            if (options.endpoint.length === 0) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -67,7 +67,7 @@ ingestor.command('ingest')
     });
 
 ingestor.command('ingest_mpu')
-    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--endpoint <endpoint...>', 'endpoint URL(s)')
     .option('--bucket <bucket>', 'bucket name')
     .option('--profile [profile]', 'aws/credentials profile', 'default')
     .option('--workers [n]', 'how many parallel workers', 10, parseInt)
@@ -77,12 +77,12 @@ ingestor.command('ingest_mpu')
     .option('--no-complete', 'do not complete the MPU', false)
     .option('--abort', 'abort the MPU instead of completing it', false)
     .action(options => {
-        if (!options.endpoint ||
+        if (options.endpoint.length === 0 ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.parts) ||
             isNaN(options.size)) {
-            if (!options.endpoint) {
+            if (options.endpoint.length === 0) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -104,7 +104,7 @@ ingestor.command('ingest_mpu')
     });
 
 ingestor.command('ingest_buckets')
-    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--endpoint <endpoint...>', 'endpoint URL(s)')
     .option('--profile [profile]', 'aws/credentials profile', 'default')
     .option('--workers [n]', 'how many parallel workers', 10, parseInt)
     .option('--count [n]', 'how many objects total', 100, parseInt)
@@ -116,10 +116,10 @@ ingestor.command('ingest_buckets')
             'interval in seconds between each CSV stats output line',
             10, parseInt)
     .action(options => {
-        if (!options.endpoint ||
+        if (options.endpoint.length === 0 ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
-            if (!options.endpoint) {
+            if (options.endpoint.length === 0) {
                 console.error('option --endpoint is missing');
             }
             if (isNaN(options.workers)) {
@@ -135,7 +135,7 @@ ingestor.command('ingest_buckets')
     });
 
 ingestor.command('readall')
-    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--endpoint <endpoint...>', 'endpoint URL(s)')
     .option('--bucket <bucket>', 'bucket name')
     .option('--prefix [prefix]', 'key prefix')
     .option('--limit-per-delimiter [limit]',
@@ -155,11 +155,11 @@ ingestor.command('readall')
             false)
     .option('--keys-from-file [path]', 'read keys from file')
     .action(options => {
-        if (!options.endpoint ||
+        if (options.endpoint.length === 0 ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
-            if (!options.endpoint) {
+            if (options.endpoint.length === 0) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -178,7 +178,7 @@ ingestor.command('readall')
     });
 
 ingestor.command('deleteall')
-    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--endpoint <endpoint...>', 'endpoint URL(s)')
     .option('--bucket <bucket>', 'bucket name')
     .option('--prefix [prefix]', 'key prefix')
     .option('--limit-per-delimiter [limit]',
@@ -198,11 +198,11 @@ ingestor.command('deleteall')
             false)
     .option('--keys-from-file [path]', 'read keys from file')
     .action(options => {
-        if (!options.endpoint ||
+        if (options.endpoint.length === 0 ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
-            if (!options.endpoint) {
+            if (options.endpoint.length === 0) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -221,7 +221,7 @@ ingestor.command('deleteall')
     });
 
 ingestor.command('deleteversions')
-    .option('--endpoint <endpoint>', 'endpoint URL')
+    .option('--endpoint <endpoint...>', 'endpoint URL(s)')
     .option('--bucket <bucket>', 'bucket name')
     .option('--prefix [prefix]', 'key prefix')
     .option('--profile [profile]', 'aws/credentials profile', 'default')
@@ -239,10 +239,10 @@ ingestor.command('deleteversions')
             'size of individual batches in number of objects (default is no batching)')
     .option('--bypass-governance-retention', false)
     .action(options => {
-        if (!options.endpoint ||
+        if (options.endpoint.length === 0 ||
             !options.bucket ||
             isNaN(options.workers)) {
-            if (!options.endpoint) {
+            if (options.endpoint.length === 0) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {

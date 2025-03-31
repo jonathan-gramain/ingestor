@@ -1,6 +1,7 @@
 const async = require('async');
 const crypto = require('crypto');
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const AWS = require('aws-sdk');
 const lineReader = require('line-reader');
@@ -110,27 +111,31 @@ function create(options) {
     const credentials = new AWS.SharedIniFileCredentials({
         profile: options.profile,
     });
-    const s3 = new AWS.S3({
-        endpoint: options.endpoint,
+    console.log('ENDPOINT', options.endpoint);
+    const s3s = options.endpoint.map(endpoint => new AWS.S3({
+        endpoint,
         credentials,
         s3ForcePathStyle: true,
         signatureVersion: 'v4',
+        useHttps: endpoint.startsWith('https:'),
         httpOptions: {
-            agent: new http.Agent({ keepAlive: true }),
+            agent: endpoint.startsWith('https:') ?
+                new https.Agent({ keepAlive: true }) :
+                new http.Agent({ keepAlive: true }),
             timeout: 0,
         },
         maxRetries: 0,
-    });
+    }));
     return {
         options,
-        s3,
+        s3s,
     };
 }
 
 function showOptions(batchObj) {
     const { options } = batchObj;
     process.stdout.write(`
-    endpoint:            ${options.endpoint}
+    endpoint(s):         ${options.endpoint}
     prefix:              ${options.prefix}
     bucket:              ${options.bucket}
     workers:             ${options.workers}
@@ -279,7 +284,7 @@ function getKey(batchObj, n, cb) {
 }
 
 function run(batchObj, batchOp, cb) {
-    const { options, s3 } = batchObj;
+    const { options, s3s } = batchObj;
     let successCount = 0;
     let errorCount = 0;
 
@@ -337,7 +342,7 @@ function run(batchObj, batchOp, cb) {
                 ++errorCount;
                 next();
             };
-            batchOp(s3, n, endSuccess, endError);
+            batchOp(s3s[n % s3s.length], n, endSuccess, endError);
         };
         if (nextTime) {
             if (startTime > nextTime) {

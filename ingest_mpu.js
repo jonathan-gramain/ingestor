@@ -91,7 +91,7 @@ function ingest_mpu(options, cb) {
         options.prefix = `test-${new Date().toISOString().replace(/[:.]/g, '-')}/`;
     }
     console.log(`
-    endpoint:     ${options.endpoint}
+    endpoint(s):  ${options.endpoint}
     prefix:       ${options.prefix}
     bucket:       ${options.bucket}
     workers:      ${options.workers}
@@ -103,21 +103,20 @@ function ingest_mpu(options, cb) {
         profile: options.profile,
     });
     const body = generateBody(options.size);
-    const s3 = new AWS.S3({
-        endpoint: options.endpoint,
-        region: 'eu-central-1',
+    const s3s = options.endpoint.map(endpoint => new AWS.S3({
+        endpoint,
         credentials,
         s3ForcePathStyle: true,
         signatureVersion: 'v4',
-        useHttps: options.endpoint.startsWith('https:'),
+        useHttps: endpoint.startsWith('https:'),
         httpOptions: {
-            agent: options.endpoint.startsWith('https:') ?
+            agent: endpoint.startsWith('https:') ?
                 new https.Agent({ keepAlive: true }) :
                 new http.Agent({ keepAlive: true }),
             timeout: 0,
         },
         maxRetries: 0,
-    });
+    }));
 
     let successCount = 0;
     let errorCount = 0;
@@ -135,7 +134,7 @@ function ingest_mpu(options, cb) {
     let uploadId;
     const partsInfo = [];
     async.waterfall([
-        done => s3.createMultipartUpload({
+        done => s3s[0].createMultipartUpload({
             Bucket: options.bucket,
             Key: key,
         }, (err, data) => {
@@ -150,7 +149,7 @@ function ingest_mpu(options, cb) {
             uploadId = data.UploadId;
             async.timesLimit(options.parts, options.workers, (n, next) => {
                 const startTime = Date.now();
-                s3.uploadPart({
+                s3s[n % s3s.length].uploadPart({
                     Bucket: options.bucket,
                     Key: key,
                     UploadId: uploadId,
@@ -184,7 +183,7 @@ function ingest_mpu(options, cb) {
                 return done();
             }
             if (options.abort) {
-                return s3.abortMultipartUpload({
+                return s3s[0].abortMultipartUpload({
                     Bucket: options.bucket,
                     Key: key,
                     UploadId: uploadId,
@@ -197,7 +196,7 @@ function ingest_mpu(options, cb) {
                     return done(err);
                 });
             }
-            s3.completeMultipartUpload({
+            s3s[0].completeMultipartUpload({
                 Bucket: options.bucket,
                 Key: key,
                 UploadId: uploadId,
