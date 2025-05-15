@@ -40,12 +40,12 @@ ingestor.command('ingest')
     .option('--verbose', 'increase verbosity', false)
     .option('--object-lock', 'lock ingested objects for one year in GOVERNANCE mode (the bucket must have object-lock enabled)', false)
     .action(options => {
-        if (options.endpoint.length === 0 ||
+        if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.count) ||
             isNaN(options.size)) {
-            if (options.endpoint.length === 0) {
+            if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -77,12 +77,12 @@ ingestor.command('ingest_mpu')
     .option('--no-complete', 'do not complete the MPU', false)
     .option('--abort', 'abort the MPU instead of completing it', false)
     .action(options => {
-        if (options.endpoint.length === 0 ||
+        if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.parts) ||
             isNaN(options.size)) {
-            if (options.endpoint.length === 0) {
+            if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -116,10 +116,10 @@ ingestor.command('ingest_buckets')
             'interval in seconds between each CSV stats output line',
             10, parseInt)
     .action(options => {
-        if (options.endpoint.length === 0 ||
+        if (!options.endpoint ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
-            if (options.endpoint.length === 0) {
+            if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (isNaN(options.workers)) {
@@ -155,11 +155,11 @@ ingestor.command('readall')
             false)
     .option('--keys-from-file [path]', 'read keys from file')
     .action(options => {
-        if (options.endpoint.length === 0 ||
+        if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
-            if (options.endpoint.length === 0) {
+            if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -198,11 +198,11 @@ ingestor.command('deleteall')
             false)
     .option('--keys-from-file [path]', 'read keys from file')
     .action(options => {
-        if (options.endpoint.length === 0 ||
+        if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
             isNaN(options.count)) {
-            if (options.endpoint.length === 0) {
+            if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
@@ -239,10 +239,10 @@ ingestor.command('deleteversions')
             'size of individual batches in number of objects (default is no batching)')
     .option('--bypass-governance-retention', false)
     .action(options => {
-        if (options.endpoint.length === 0 ||
+        if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers)) {
-            if (options.endpoint.length === 0) {
+            if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (!options.bucket) {
