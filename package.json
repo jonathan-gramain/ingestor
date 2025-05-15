@@ -10,7 +10,7 @@
     "author": "Jonathan Gramain",
     "license": "Apache-2.0",
     "dependencies": {
-        "async": "^2.6.0",
+        "async": "^2.6.4",
         "aws-sdk": "^2.343.0",
         "bucketclient": "scality/bucketclient#8.2.3",
         "commander": "^13.1.0",
