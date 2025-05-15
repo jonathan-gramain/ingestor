@@ -1,14 +1,5 @@
 const batch = require('./batch');
 
-function generateBody(size) {
-    const randomString = Math.random().toString(36).slice(2);
-
-    return new Array(Math.ceil(size / randomString.length))
-        .fill(randomString)
-        .join('')
-        .slice(0, size);
-}
-
 function permuteIndex(n, options) {
     if (options.random) {
         // multiply by a prime number to have a somewhat randomized
