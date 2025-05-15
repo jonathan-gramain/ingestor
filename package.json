@@ -12,6 +12,7 @@
     "dependencies": {
         "async": "^2.6.0",
         "aws-sdk": "^2.343.0",
+        "bucketclient": "scality/bucketclient#8.2.3",
         "commander": "^13.1.0",
         "line-reader": "^0.4.0"
     }

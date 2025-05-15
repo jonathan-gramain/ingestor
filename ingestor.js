@@ -3,6 +3,7 @@ const { program: ingestor } = require('commander');
 const ingest = require('./ingest');
 const ingest_mpu = require('./ingest_mpu');
 const ingest_buckets = require('./ingest_buckets');
+const ingest_bucketd = require('./ingest_bucketd');
 const readall = require('./readall');
 const deleteall = require('./deleteall');
 const deleteversions = require('./deleteversions');
@@ -132,6 +133,55 @@ ingestor.command('ingest_buckets')
             process.exit(1);
         }
         ingest_buckets(options, code => process.exit(code));
+    });
+
+ingestor.command('ingest_bucketd')
+    .option('--endpoint <endpoint...>', 'bucketd endpoint URL(s)')
+    .option('--bucket <bucket>', 'bucket name')
+    .option('--workers [n]', 'how many parallel workers', 10, parseInt)
+    .option('--count [n]', 'how many objects total', 100, parseInt)
+    .option('--size [n]', 'size of individual objects in bytes', 1000, parseInt)
+    .option('--prefix [prefix]', 'key prefix', '')
+    .option('--limit-per-delimiter [limit]',
+            'max number of object to group in a single delimiter range',
+            0, parseInt)
+    .option('--rate-limit [n]',
+            'limit rate of operations (in op/s)', 0, parseInt)
+    .option('--csv-stats [filename]', 'output file for stats in CSV format')
+    .option('--csv-stats-interval [n]',
+            'interval in seconds between each CSV stats output line',
+            10, parseInt)
+    .option('--one-object', 'hammer on a single object', false)
+    .option('--delete-after-put', 'send deletes after objects are put', false)
+    .option('--hash-keys', 'hash keys after the prefix with a MD5 sum to make them unordered', false)
+    .option('--keys-from-file [path]', 'read keys from file')
+    .option('--random', 'randomize keys when reading from a file', false)
+    .option('--verbose', 'increase verbosity', false)
+    .action(options => {
+        if (!options.endpoint ||
+            !options.bucket ||
+            isNaN(options.workers) ||
+            isNaN(options.count) ||
+            isNaN(options.size)) {
+            if (!options.endpoint) {
+                console.error('option --endpoint is missing');
+            }
+            if (!options.bucket) {
+                console.error('option --bucket is missing');
+            }
+            if (isNaN(options.workers)) {
+                console.error('value of option --workers must be an integer');
+            }
+            if (isNaN(options.count)) {
+                console.error('value of option --count must be an integer');
+            }
+            if (isNaN(options.size)) {
+                console.error('value of option --size must be an integer');
+            }
+            ingestor.outputHelp();
+            process.exit(1);
+        }
+        ingest_bucketd(options, code => process.exit(code));
     });
 
 ingestor.command('readall')
