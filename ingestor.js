@@ -140,7 +140,6 @@ ingestor.command('ingest_bucketd')
     .option('--bucket <bucket>', 'bucket name')
     .option('--workers [n]', 'how many parallel workers', 10, parseInt)
     .option('--count [n]', 'how many objects total', 100, parseInt)
-    .option('--size [n]', 'size of individual objects in bytes', 1000, parseInt)
     .option('--prefix [prefix]', 'key prefix', '')
     .option('--limit-per-delimiter [limit]',
             'max number of object to group in a single delimiter range',
@@ -161,8 +160,7 @@ ingestor.command('ingest_bucketd')
         if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
-            isNaN(options.count) ||
-            isNaN(options.size)) {
+            isNaN(options.count)) {
             if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
@@ -174,9 +172,6 @@ ingestor.command('ingest_bucketd')
             }
             if (isNaN(options.count)) {
                 console.error('value of option --count must be an integer');
-            }
-            if (isNaN(options.size)) {
-                console.error('value of option --size must be an integer');
             }
             ingestor.outputHelp();
             process.exit(1);
