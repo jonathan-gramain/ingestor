@@ -1,10 +1,13 @@
 const async = require('async');
+const assert = require('assert');
 const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const AWS = require('aws-sdk');
 const lineReader = require('line-reader');
+
+const { lcgInit, lcgGen } = require('./lcg');
 
 const STATUS_BAR_LENGTH = 60;
 const STATUS_BAR_TPL =
@@ -107,6 +110,21 @@ function outputCsvLine(stats) {
         `${Date.now()},${stats.opsPerSec},${stats.kBPerSec},${getLatencyQuantilesCsv()}\n`);
 }
 
+function permuteIndex(batchObj, n, options) {
+    if (options.random) {
+        while (batchObj.lcgState.iter < n) {
+            batchObj.lcgCache[batchObj.lcgState.iter] = lcgGen(batchObj.lcgState);
+        }
+        if (batchObj.lcgState.iter === n) {
+            return lcgGen(batchObj.lcgState);
+        }
+        const cached = batchObj.lcgCache[n];
+        delete batchObj.lcgCache[n];
+        return cached;
+    }
+    return n;
+}
+
 function create(options) {
     const credentials = new AWS.SharedIniFileCredentials({
         profile: options.profile,
@@ -153,12 +171,14 @@ function getGeneratedKey(batchObj, n) {
     if (options.oneObject) {
         return `${options.prefix}test-key`;
     }
+    const idx = permuteIndex(batchObj, n, options);
+
     let componentsOfN = [];
     let compWidth;
     if (options.limitPerDelimiter) {
         const delimiterCount = Math.ceil(
             Math.log(options.count) / Math.log(options.limitPerDelimiter) - 1);
-        let _n = n;
+        let _n = idx;
         while (_n > 0) {
             componentsOfN.push(_n % options.limitPerDelimiter);
             _n = Math.floor(_n / options.limitPerDelimiter);
@@ -168,7 +188,7 @@ function getGeneratedKey(batchObj, n) {
         }
         compWidth = Math.ceil(Math.log10(options.limitPerDelimiter));
     } else {
-        componentsOfN.push(n);
+        componentsOfN.push(idx);
         compWidth = Math.ceil(Math.log10(options.count));
     }
     componentsOfN.reverse();
@@ -240,6 +260,11 @@ function init(batchObj, cb) {
                 }
             );
         });
+    }
+    if (options.random) {
+        batchObj.randSeed = Math.floor(Math.random() * 1000000000);
+        batchObj.lcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
+        batchObj.lcgCache = {};
     }
     return process.nextTick(cb);
 }

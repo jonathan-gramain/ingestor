@@ -21,7 +21,8 @@ function ingest_bucketd(options, cb) {
     }
 
     const bucketds = options.endpoint.map(endpoint => new bucketclient.RESTClient(endpoint));
-    batch.showOptions({ options });
+    const batchObj = { options, s3s: bucketds };
+    batch.showOptions(batchObj);
 
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
@@ -34,7 +35,7 @@ function ingest_bucketd(options, cb) {
     const putObject = (bc, bucket, key, body, uids, cb) => bc.putObject(bucket, key, body, uids, cb);
 
     const ingestOp = (bc, n, endSuccess, endError) => {
-        batch.getKey({ options }, n, key => {
+        batch.getKey(batchObj, n, key => {
             const uids = n.toString();
             const body = generateBody(options.size);
             putObject(bc, options.bucket, key, body, uids, err => {
@@ -57,11 +58,11 @@ function ingest_bucketd(options, cb) {
             });
         });
     };
-    batch.init({ options }, err => {
+    batch.init(batchObj, err => {
         if (err) {
             return cb(err);
         }
-        return batch.run({ options, s3s: bucketds }, ingestOp, cb);
+        return batch.run(batchObj, ingestOp, cb);
     });
 }
 
