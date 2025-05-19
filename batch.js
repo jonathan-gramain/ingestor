@@ -15,7 +15,7 @@ const STATUS_BAR_TPL =
           new Array(STATUS_BAR_LENGTH).fill(' ')).join('');
 const STATUS_UPDATE_PERIOD_MS = 200;
 const STATS_PERIOD_MS = 2000;
-const STATS_QUANTILES_WINDOW_SIZE = 1000;
+const STATS_QUANTILES_WINDOW_SIZE = 10000;
 
 const LATENCY_QUANTILES = {
     'lowest': 0,
