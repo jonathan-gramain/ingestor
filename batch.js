@@ -352,7 +352,7 @@ function run(batchObj, batchOp, cb) {
                         options.csvStatsInterval * 1000);
     }
     let nextTime = options.rateLimit ? Date.now() : null;
-    async.timesLimit(options.count, options.workers, (n, next) => {
+    const triggerOp = (n, next) => {
         const startTime = Date.now();
         const doOp = () => {
             const opStartTime = Date.now();
@@ -384,7 +384,12 @@ function run(batchObj, batchOp, cb) {
         } else {
             doOp();
         }
-    }, () => {
+    };
+
+    let n = 0;
+    let nInFlight = 0;
+
+    const finalizeCb = () => {
         updateStatusBarIntervalFunc();
         console.log();
         clearInterval(updateStatusBarInterval);
@@ -397,7 +402,24 @@ function run(batchObj, batchOp, cb) {
         } else {
             cb();
         }
-    });
+    };
+
+    const opCb = () => {
+        if (n < options.count) {
+            triggerOp(n, opCb);
+            ++n;
+        } else {
+            --nInFlight;
+            if (nInFlight === 0) {
+                finalizeCb();
+            }
+        }
+    };
+    while (n < Math.min(options.count, options.workers)) {
+        triggerOp(n, opCb);
+        ++n;
+        ++nInFlight;
+    }
 }
 
 module.exports = {

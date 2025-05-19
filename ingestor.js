@@ -44,7 +44,7 @@ ingestor.command('ingest')
         if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
-            isNaN(options.count) ||
+            isNaN(options.count) || options.count <= 0 ||
             isNaN(options.size)) {
             if (!options.endpoint) {
                 console.error('option --endpoint is missing');
@@ -55,8 +55,8 @@ ingestor.command('ingest')
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');
             }
-            if (isNaN(options.count)) {
-                console.error('value of option --count must be an integer');
+            if (isNaN(options.count) || options.count <= 0) {
+                console.error('value of option --count must be a strictly positive integer');
             }
             if (isNaN(options.size)) {
                 console.error('value of option --size must be an integer');
@@ -119,15 +119,15 @@ ingestor.command('ingest_buckets')
     .action(options => {
         if (!options.endpoint ||
             isNaN(options.workers) ||
-            isNaN(options.count)) {
+            isNaN(options.count) || options.count <= 0) {
             if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');
             }
-            if (isNaN(options.count)) {
-                console.error('value of option --count must be an integer');
+            if (isNaN(options.count) || options.count <= 0) {
+                console.error('value of option --count must be a strictly positive integer');
             }
             ingestor.outputHelp();
             process.exit(1);
@@ -160,6 +160,7 @@ ingestor.command('ingest_bucketd')
         if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
+            isNaN(options.count) || options.count <= 0 ||
             isNaN(options.count)) {
             if (!options.endpoint) {
                 console.error('option --endpoint is missing');
@@ -170,8 +171,8 @@ ingestor.command('ingest_bucketd')
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');
             }
-            if (isNaN(options.count)) {
-                console.error('value of option --count must be an integer');
+            if (isNaN(options.count) || options.count <= 0) {
+                console.error('value of option --count must be a strictly positive integer');
             }
             ingestor.outputHelp();
             process.exit(1);
@@ -203,7 +204,7 @@ ingestor.command('readall')
         if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
-            isNaN(options.count)) {
+            isNaN(options.count) || options.count <= 0) {
             if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
@@ -213,8 +214,8 @@ ingestor.command('readall')
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');
             }
-            if (isNaN(options.count)) {
-                console.error('value of option --count must be an integer');
+            if (isNaN(options.count) || options.count <= 0) {
+                console.error('value of option --count must be a strictly positive integer');
             }
             ingestor.outputHelp();
             process.exit(1);
@@ -246,7 +247,7 @@ ingestor.command('deleteall')
         if (!options.endpoint ||
             !options.bucket ||
             isNaN(options.workers) ||
-            isNaN(options.count)) {
+            isNaN(options.count) || options.count <= 0) {
             if (!options.endpoint) {
                 console.error('option --endpoint is missing');
             }
@@ -256,8 +257,8 @@ ingestor.command('deleteall')
             if (isNaN(options.workers)) {
                 console.error('value of option --workers must be an integer');
             }
-            if (isNaN(options.count)) {
-                console.error('value of option --count must be an integer');
+            if (isNaN(options.count) || options.count <= 0) {
+                console.error('value of option --count must be a strictly positive integer');
             }
             ingestor.outputHelp();
             process.exit(1);
