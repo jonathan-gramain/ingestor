@@ -54,7 +54,13 @@ function ingest_bucketd(options, cb) {
 
     const extraPutOpts = {};
 
-    const putObject = (bc, bucket, key, body, uids, cb) => bc.putObject(bucket, key, body, uids, cb);
+    const putObject = (bc, bucket, key, body, uids, cb) => {
+        const params = {};
+        if (options.versioned) {
+            params.versioning = true;
+        }
+        bc.putObject(bucket, key, body, uids, cb, params);
+    };
 
     const ingestOp = (bc, n, endSuccess, endError) => {
         batch.getKey(batchObj, n, key => {

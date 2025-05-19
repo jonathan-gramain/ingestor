@@ -156,6 +156,7 @@ ingestor.command('ingest_bucketd')
     .option('--keys-from-file [path]', 'read keys from file')
     .option('--random', 'randomize keys when reading from a file', false)
     .option('--verbose', 'increase verbosity', false)
+    .option('--versioned', 'use versioned PUT', false)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
