@@ -9,17 +9,30 @@ const MD_TEMPLATE_MD5_OFFSET = MD_TEMPLATE.indexOf('HHHHHHHHHHHHHHHHHHHHHHHHHHHH
 const MD_TEMPLATE_LOCATION_KEY_OFFSET = MD_TEMPLATE.indexOf('KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK');
 const MD_TEMPLATE_ETAG_OFFSET = MD_TEMPLATE.indexOf('TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT');
 
-function generateBody() {
-    // simulate content MD5 with chars in the a-p range (for simplicity and performance)
-    const md5 = Buffer.alloc(32).map(() => 97+Math.random()*16);
-    MD_TEMPLATE.set(md5, MD_TEMPLATE_MD5_OFFSET);
+const MD5_ZEROS = Buffer.from('00000000000000000000000000000000');
+const LOCATION_ZEROS = Buffer.from('0000000000000000000000000000000000000000');
 
-    // simulate location key with chars in the A-P range (for simplicity and performance)
-    const locKey = Buffer.alloc(40).map(() => 65+Math.random()*16);
-    MD_TEMPLATE.set(locKey, MD_TEMPLATE_LOCATION_KEY_OFFSET);
+// The idea of this function is generating a body resembling real metadata. We
+// replace the variable values by random contents looking like the actual
+// values, because it can have a significant effect on database compression.
+function generateBody() {
+    // simulate content MD5 with a randomly generated 32-char hex string
+    MD_TEMPLATE.set(MD5_ZEROS, MD_TEMPLATE_MD5_OFFSET);
+    for (let i = 0; i < 4; ++i) {
+        const md5part = Buffer.from(Math.floor(Math.random()*0x100000000).toString(16));
+        MD_TEMPLATE.set(md5part, MD_TEMPLATE_MD5_OFFSET + 8*(i+1) - Buffer.byteLength(md5part));
+    }
+    // simulate location key with a randomly generated 40-char hex string
+    MD_TEMPLATE.set(LOCATION_ZEROS, MD_TEMPLATE_LOCATION_KEY_OFFSET);
+    for (let i = 0; i < 5; ++i) {
+        const locationPart = Buffer.from(Math.floor(Math.random()*0x100000000).toString(16));
+        MD_TEMPLATE.set(locationPart, MD_TEMPLATE_LOCATION_KEY_OFFSET + 8*(i+1)
+                        - Buffer.byteLength(locationPart));
+    }
 
     // etag is usually equal to md5 (except for MPUs)
-    MD_TEMPLATE.set(md5, MD_TEMPLATE_ETAG_OFFSET);
+    MD_TEMPLATE.set(MD_TEMPLATE.slice(MD_TEMPLATE_MD5_OFFSET, MD_TEMPLATE_MD5_OFFSET + 32),
+                    MD_TEMPLATE_ETAG_OFFSET);
 
     return MD_TEMPLATE.toString('ascii');
 }
