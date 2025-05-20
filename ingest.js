@@ -111,37 +111,35 @@ function ingest(options, cb) {
         putFunc = putObject;
     }
 
-    const ingestOp = (s3, n, endSuccess, endError) => {
-        batch.getKey(obj, n, key => {
-            let tags = '';
-            if (options.addTags) {
-                const nTags = Math.floor(Math.random() * 50);
-                const tagSet = [];
-                for (let i = 1; i <= nTags; ++i) {
-                    tagSet.push(`TagKey${i}=VeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongTagValue${i}`);
-                }
-                tags = tagSet.join('&');
+    const ingestOp = (s3, n, objKey, endSuccess, endError) => {
+        let tags = '';
+        if (options.addTags) {
+            const nTags = Math.floor(Math.random() * 50);
+            const tagSet = [];
+            for (let i = 1; i <= nTags; ++i) {
+                tagSet.push(`TagKey${i}=VeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongTagValue${i}`);
             }
-            putFunc(s3, options.bucket, key, body, tags, err => {
+            tags = tagSet.join('&');
+        }
+        putFunc(s3, options.bucket, objKey, body, tags, err => {
+            if (err) {
+                console.error(`error during "PUT ${options.bucket}/${objKey}":`,
+                              err.message);
+                return endError();
+            }
+            if (!options.deleteAfterPut) {
+                return endSuccess();
+            }
+            return s3.deleteObject({
+                Bucket: options.bucket,
+                Key: objKey,
+            }, err => {
                 if (err) {
-                    console.error(`error during "PUT ${options.bucket}/${key}":`,
+                    console.error(`error during "DELETE ${options.bucket}/${objKey}":`,
                                   err.message);
                     return endError();
                 }
-                if (!options.deleteAfterPut) {
-                    return endSuccess();
-                }
-                return s3.deleteObject({
-                    Bucket: options.bucket,
-                    Key: key,
-                }, err => {
-                    if (err) {
-                        console.error(`error during "DELETE ${options.bucket}/${key}":`,
-                                      err.message);
-                        return endError();
-                    }
-                    return endSuccess();
-                });
+                return endSuccess();
             });
         });
     };

@@ -62,27 +62,25 @@ function ingest_bucketd(options, cb) {
         bc.putObject(bucket, key, body, uids, cb, params);
     };
 
-    const ingestOp = (bc, n, endSuccess, endError) => {
-        batch.getKey(batchObj, n, key => {
-            const uids = n.toString();
-            const body = generateBody();
-            putObject(bc, options.bucket, key, body, uids, err => {
+    const ingestOp = (bc, n, objKey, endSuccess, endError) => {
+        const uids = n.toString();
+        const body = generateBody();
+        putObject(bc, options.bucket, objKey, body, uids, err => {
+            if (err) {
+                console.error(`error during "PUT ${options.bucket}/${objKey}":`,
+                              err.message);
+                return endError();
+            }
+            if (!options.deleteAfterPut) {
+                return endSuccess();
+            }
+            return bc.deleteObject(options.bucket, objKey, uids, err => {
                 if (err) {
-                    console.error(`error during "PUT ${options.bucket}/${key}":`,
+                    console.error(`error during "DELETE ${options.bucket}/${objKey}":`,
                                   err.message);
                     return endError();
                 }
-                if (!options.deleteAfterPut) {
-                    return endSuccess();
-                }
-                return bc.deleteObject(options.bucket, key, uids, err => {
-                    if (err) {
-                        console.error(`error during "DELETE ${options.bucket}/${key}":`,
-                                      err.message);
-                        return endError();
-                    }
-                    return endSuccess();
-                });
+                return endSuccess();
             });
         });
     };

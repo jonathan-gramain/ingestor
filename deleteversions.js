@@ -30,7 +30,7 @@ function deleteversions(options, cb) {
         extraDeleteOpts.BypassGovernanceRetention = true;
     }
 
-    const deleteversionsOp = (s3, n, endSuccess, endError) => {
+    const deleteversionsOp = (s3, n, objKey, endSuccess, endError) => {
         const idx = permuteIndex(n, options);
         const { Key, VersionId } = allKeys[idx];
         if (options.batchSize) {

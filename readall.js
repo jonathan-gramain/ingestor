@@ -18,20 +18,17 @@ function readall(options, cb) {
     random:          ${options.random ? 'yes' : 'no'}
 `);
 
-    const readallOp = (s3, n, endSuccess, endError) => {
-        const idx = permuteIndex(n, options);
-        batch.getKey(obj, n, key => {
-            s3.getObject({
-                Bucket: options.bucket,
-                Key: key,
-            }, err => {
-                if (err) {
-                    console.error(`error during "GET ${options.bucket}/${key}":`,
-                                  err.message);
-                    return endError();
-                }
-                return endSuccess();
-            });
+    const readallOp = (s3, n, objKey, endSuccess, endError) => {
+        s3.getObject({
+            Bucket: options.bucket,
+            Key: objKey,
+        }, err => {
+            if (err) {
+                console.error(`error during "GET ${options.bucket}/${objKey}":`,
+                              err.message);
+                return endError();
+            }
+            return endSuccess();
         });
     };
     batch.init(obj, err => {

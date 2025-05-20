@@ -11,7 +11,7 @@ function ingest_buckets(options, cb) {
     console.log(`
 `);
 
-    const ingestOp = (s3, n, endSuccess, endError) => {
+    const ingestOp = (s3, n, objKey, endSuccess, endError) => {
         const compMask = Buffer.alloc(6).fill('0').toString();
         const suffix = `${compMask}${n}`.slice(-compMask.length);
         const bucketName = `${options.prefix}-${suffix}`;

@@ -366,7 +366,9 @@ function run(batchObj, batchOp, cb) {
                 ++errorCount;
                 next();
             };
-            batchOp(s3s[n % s3s.length], n, endSuccess, endError);
+            getKey(batchObj, n, objKey => {
+                batchOp(s3s[n % s3s.length], n, objKey, endSuccess, endError);
+            });
         };
         if (nextTime) {
             if (startTime > nextTime) {
