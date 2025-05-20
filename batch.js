@@ -7,7 +7,7 @@ const fs = require('fs');
 const AWS = require('aws-sdk');
 const lineReader = require('line-reader');
 
-const { lcgInit, lcgGen } = require('./lcg');
+const { lcgInit, lcgGen, lcgReset } = require('./lcg');
 
 const STATUS_BAR_LENGTH = 60;
 const STATUS_BAR_TPL =
@@ -111,18 +111,35 @@ function outputCsvLine(stats) {
 }
 
 function permuteIndex(batchObj, n, options) {
+    const rewrite = (options.rewritePercent && Math.random() < options.rewritePercent / 100);
+    let idx;
+    let lcgCache;
+    let lcgState;
+    if (rewrite) {
+        idx = batchObj.rwn % n;
+        ++batchObj.rwn;
+        lcgState = batchObj.rwLcgState;
+        lcgCache = batchObj.rwLcgCache;
+    } else {
+        idx = n;
+        lcgState = batchObj.lcgState;
+        lcgCache = batchObj.lcgCache;
+    }
     if (options.random) {
-        while (batchObj.lcgState.iter < n) {
-            batchObj.lcgCache[batchObj.lcgState.iter] = lcgGen(batchObj.lcgState);
+        if (lcgState.iter > idx) {
+            lcgReset(lcgState);
         }
-        if (batchObj.lcgState.iter === n) {
-            return lcgGen(batchObj.lcgState);
+        while (lcgState.iter < idx) {
+            lcgCache[lcgState.iter] = lcgGen(lcgState);
         }
-        const cached = batchObj.lcgCache[n];
-        delete batchObj.lcgCache[n];
+        if (lcgState.iter === idx) {
+            return lcgGen(lcgState);
+        }
+        const cached = lcgCache[idx];
+        delete lcgCache[idx];
         return cached;
     }
-    return n;
+    return idx;
 }
 
 function create(options) {
@@ -172,7 +189,6 @@ function getGeneratedKey(batchObj, n) {
         return `${options.prefix}test-key`;
     }
     const idx = permuteIndex(batchObj, n, options);
-
     let componentsOfN = [];
     let compWidth;
     if (options.limitPerDelimiter) {
@@ -265,7 +281,10 @@ function init(batchObj, cb) {
         batchObj.randSeed = Math.floor(Math.random() * 1000000000);
         batchObj.lcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
         batchObj.lcgCache = {};
+        batchObj.rwLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
+        batchObj.rwLcgCache = {};
     }
+    batchObj.rwn = 0;
     return process.nextTick(cb);
 }
 

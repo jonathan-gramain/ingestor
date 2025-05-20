@@ -40,6 +40,7 @@ ingestor.command('ingest')
     .option('--random', 'randomize keys when reading from a file', false)
     .option('--verbose', 'increase verbosity', false)
     .option('--object-lock', 'lock ingested objects for one year in GOVERNANCE mode (the bucket must have object-lock enabled)', false)
+    .option('--rewrite-percent', 'probability percentage of rewrites over existing objects', 0)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
@@ -157,6 +158,7 @@ ingestor.command('ingest_bucketd')
     .option('--random', 'randomize keys when reading from a file', false)
     .option('--verbose', 'increase verbosity', false)
     .option('--versioned', 'use versioned PUT', false)
+    .option('--rewrite-percent <rwp>', 'probability percentage of rewrites over existing objects', 0, parseInt)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||

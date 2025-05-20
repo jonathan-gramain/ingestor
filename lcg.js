@@ -9,6 +9,7 @@ function lcgInit(m, seed) {
     return {
         m,
         m2,
+        seed,
         n: seed % m,
         iter: 0,
     };
@@ -27,7 +28,13 @@ function lcgGen(state) {
     return nextN;
 }
 
+function lcgReset(state) {
+    state.n = state.seed % state.m;
+    state.iter = 0;
+}
+
 module.exports = {
     lcgInit,
     lcgGen,
+    lcgReset,
 };
