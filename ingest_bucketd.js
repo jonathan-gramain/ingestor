@@ -48,7 +48,6 @@ function ingest_bucketd(options, cb) {
 
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
-    del after put:       ${options.deleteAfterPut ? 'yes' : 'no'}
     random:              ${options.random ? 'yes' : 'no'}
 `);
 
@@ -62,19 +61,40 @@ function ingest_bucketd(options, cb) {
         bc.putObject(bucket, key, body, uids, cb, params);
     };
 
-    const ingestOp = (bc, n, objKey, endSuccess, endError) => {
+    const getObject = (bc, bucket, key, uids, cb) => {
+        bc.getObject(bucket, key, uids, cb, {});
+    };
+
+    const deleteObject = (bc, bucket, key, uids, cb) => {
+        bc.deleteObject(bucket, key, uids, cb, {});
+    };
+
+    const ingestOp = (bc, n, opType, objKey, endSuccess, endError) => {
         const uids = n.toString();
-        const body = generateBody();
-        putObject(bc, options.bucket, objKey, body, uids, err => {
-            if (err) {
-                console.error(`error during "PUT ${options.bucket}/${objKey}":`,
-                              err.message);
-                return endError();
-            }
-            if (!options.deleteAfterPut) {
+        switch (opType) {
+        case 'put':
+            const body = generateBody();
+            putObject(bc, options.bucket, objKey, body, uids, err => {
+                if (err) {
+                    console.error(`error during "PUT ${options.bucket}/${objKey}":`,
+                                  err.message);
+                    return endError();
+                }
                 return endSuccess();
-            }
-            return bc.deleteObject(options.bucket, objKey, uids, err => {
+            });
+            break;
+        case 'get':
+            getObject(bc, options.bucket, objKey, uids, err => {
+                if (err && err.message !== 'NoSuchKey') {
+                    console.error(`error during "GET ${options.bucket}/${objKey}":`,
+                                  err.message);
+                    return endError();
+                }
+                return endSuccess();
+            });
+            break;
+        case 'del':
+            deleteObject(bc, options.bucket, objKey, uids, err => {
                 if (err) {
                     console.error(`error during "DELETE ${options.bucket}/${objKey}":`,
                                   err.message);
@@ -82,7 +102,8 @@ function ingest_bucketd(options, cb) {
                 }
                 return endSuccess();
             });
-        });
+            break;
+        }
     };
     batch.init(batchObj, err => {
         if (err) {

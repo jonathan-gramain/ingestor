@@ -163,13 +163,16 @@ ingestor.command('ingest_bucketd')
             'interval in seconds between each CSV stats output line',
             parseIntOpt, 10)
     .option('--one-object', 'hammer on a single object', false)
-    .option('--delete-after-put', 'send deletes after objects are put', false)
     .option('--hash-keys', 'hash keys after the prefix with a MD5 sum to make them unordered', false)
     .option('--keys-from-file [path]', 'read keys from file')
     .option('--random', 'randomize keys when reading from a file', false)
     .option('--verbose', 'increase verbosity', false)
     .option('--versioned', 'use versioned PUT', false)
+    .option('--read-percent <rp>', 'probability percentage of reads over existing objects',
+            parseIntOpt, 0)
     .option('--rewrite-percent <rwp>', 'probability percentage of rewrites over existing objects',
+            parseIntOpt, 0)
+    .option('--delete-percent <dp>', 'probability percentage of deletes over existing objects',
             parseIntOpt, 0)
     .option('--median-sequence-length <length>', 'with --random: introduce probabilistic sequentiality in accesses (read/write) where consecutive keys are accessed with the given median sequence length (in number of keys)',
             parseFloatOpt, 0)
@@ -192,6 +195,11 @@ ingestor.command('ingest_bucketd')
                 console.error('value of option --count must be a strictly positive integer');
             }
             ingestor.outputHelp();
+            process.exit(1);
+        }
+        const sumPercent = options.readPercent + options.rewritePercent + options.deletePercent;
+        if (sumPercent >= 100) {
+            console.error(`sum of --read-percent, --rewrite-percent and --delete-percent exceed or equal 100 (${sumPercent})`);
             process.exit(1);
         }
         ingest_bucketd(options, code => process.exit(code));

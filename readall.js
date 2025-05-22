@@ -9,7 +9,8 @@ function readall(options, cb) {
     random:          ${options.random ? 'yes' : 'no'}
 `);
 
-    const readallOp = (s3, n, objKey, endSuccess, endError) => {
+    const readallOp = (s3, n, opType, objKey, endSuccess, endError) => {
+        // opType ignored for now
         s3.getObject({
             Bucket: options.bucket,
             Key: objKey,

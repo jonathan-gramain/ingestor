@@ -9,7 +9,8 @@ function deleteall(options, cb) {
     random:          ${options.random ? 'yes' : 'no'}
 `);
 
-    const deleteallOp = (s3, n, objKey, endSuccess, endError) => {
+    const deleteallOp = (s3, n, opType, objKey, endSuccess, endError) => {
+        // opType ignored for now
         s3.deleteObject({
             Bucket: options.bucket,
             Key: objKey,

@@ -111,7 +111,8 @@ function ingest(options, cb) {
         putFunc = putObject;
     }
 
-    const ingestOp = (s3, n, objKey, endSuccess, endError) => {
+    const ingestOp = (s3, n, opType, objKey, endSuccess, endError) => {
+        // opType ignored for now
         let tags = '';
         if (options.addTags) {
             const nTags = Math.floor(Math.random() * 50);
