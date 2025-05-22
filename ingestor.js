@@ -50,6 +50,8 @@ ingestor.command('ingest')
     .option('--verbose', 'increase verbosity', false)
     .option('--object-lock', 'lock ingested objects for one year in GOVERNANCE mode (the bucket must have object-lock enabled)', false)
     .option('--rewrite-percent', 'probability percentage of rewrites over existing objects', 0)
+    .option('--median-sequence-length <length>', 'with --random: introduce probabilistic sequentiality in accesses (read/write) where consecutive keys are accessed with the given median sequence length (in number of keys)',
+            parseFloatOpt, 0)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
@@ -169,6 +171,8 @@ ingestor.command('ingest_bucketd')
     .option('--versioned', 'use versioned PUT', false)
     .option('--rewrite-percent <rwp>', 'probability percentage of rewrites over existing objects',
             parseIntOpt, 0)
+    .option('--median-sequence-length <length>', 'with --random: introduce probabilistic sequentiality in accesses (read/write) where consecutive keys are accessed with the given median sequence length (in number of keys)',
+            parseFloatOpt, 0)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
@@ -213,6 +217,8 @@ ingestor.command('readall')
             'randomize reads, while still reading all keys exactly once',
             false)
     .option('--keys-from-file [path]', 'read keys from file')
+    .option('--median-sequence-length <length>', 'with --random: introduce probabilistic sequentiality in accesses (read/write) where consecutive keys are accessed with the given median sequence length (in number of keys)',
+            parseFloatOpt, 0)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||
@@ -256,6 +262,8 @@ ingestor.command('deleteall')
             'randomize deletes, while still deleting all keys exactly once',
             false)
     .option('--keys-from-file [path]', 'read keys from file')
+    .option('--median-sequence-length <length>', 'with --random: introduce probabilistic sequentiality in accesses (read/write) where consecutive keys are accessed with the given median sequence length (in number of keys)',
+            parseFloatOpt, 0)
     .action(options => {
         if (!options.endpoint ||
             !options.bucket ||

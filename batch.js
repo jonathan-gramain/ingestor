@@ -126,6 +126,18 @@ function permuteIndex(batchObj, n, options) {
         lcgCache = batchObj.lcgCache;
     }
     if (options.random) {
+        // probabilistically decide to either extend the current access
+        // to the next key, or jump to the next random key
+        if (options.medianSequenceLength > 1 && batchObj.seqLcgState &&
+            Math.random() > 1 / options.medianSequenceLength) {
+            ++batchObj.seqIdx;
+            return batchObj.seqLcgState.n + batchObj.seqIdx;
+        }
+        // base the whole next sequence to generate on the same LCG state
+        batchObj.seqLcgState = lcgState;
+        batchObj.seqIdx = 0;
+
+        // generate the next randomized index
         if (lcgState.iter > idx) {
             lcgReset(lcgState);
         }
@@ -283,6 +295,8 @@ function init(batchObj, cb) {
         batchObj.lcgCache = {};
         batchObj.rwLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
         batchObj.rwLcgCache = {};
+        batchObj.seqLcgState = null;
+        batchObj.seqIdx = 0;
     }
     batchObj.rwn = 0;
     return process.nextTick(cb);

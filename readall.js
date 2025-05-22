@@ -1,14 +1,5 @@
 const batch = require('./batch');
 
-function permuteIndex(n, options) {
-    if (options.random) {
-        // multiply by a prime number to have a somewhat randomized
-        // bijective mapping and read all objects exactly once
-        return (n * 5776357) % options.count;
-    }
-    return n;
-}
-
 function readall(options, cb) {
     const obj = batch.create(options);
 
