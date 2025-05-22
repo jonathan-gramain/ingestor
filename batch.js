@@ -9,7 +9,7 @@ const lineReader = require('line-reader');
 
 const { lcgInit, lcgGen, lcgReset } = require('./lcg');
 
-const STATUS_BAR_LENGTH = 60;
+const STATUS_BAR_LENGTH = 40;
 const STATUS_BAR_TPL =
       new Array(STATUS_BAR_LENGTH).fill('=').concat(
           new Array(STATUS_BAR_LENGTH).fill(' ')).join('');
@@ -31,11 +31,19 @@ const LATENCY_QUANTILES_LABELS = Object.entries(LATENCY_QUANTILES)
 
 const statsWindow = new Array(Math.max(
     Math.floor(STATS_PERIOD_MS / STATUS_UPDATE_PERIOD_MS),
-    1)).fill({});
+    1)).fill({ doneCount: {} });
 let statsWindowIndex = 0;
 
-const latenciesWindow = [];
-let latenciesWindowPos = 0;
+const latenciesWindow = {
+    put: [],
+    get: [],
+    del: [],
+};
+let latenciesWindowPos = {
+    put: 0,
+    get: 0,
+    del: 0,
+};
 
 let csvStatsFile = null;
 let keysFromFileReader = null;
@@ -50,8 +58,8 @@ function updateStatsWindow(statsObj) {
     statsWindowIndex = (statsWindowIndex + 1) % statsWindow.length;
 }
 
-function getLatencyQuantiles() {
-    const sortedLatencies = latenciesWindow.concat().sort((a, b) => a - b);
+function getLatencyQuantiles(opType) {
+    const sortedLatencies = latenciesWindow[opType].concat().sort((a, b) => a - b);
     const quantiles = {};
     if (sortedLatencies[0] === undefined) {
         LATENCY_QUANTILES_LABELS.forEach(l => quantiles[l] = NaN);
@@ -65,32 +73,72 @@ function getLatencyQuantiles() {
 }
 
 function getLatencyQuantilesPretty() {
-    const quantiles = getLatencyQuantiles();
+    const quantiles = {
+        put: getLatencyQuantiles('put'),
+        get: getLatencyQuantiles('get'),
+        del: getLatencyQuantiles('del'),
+    };
     return '|' + LATENCY_QUANTILES_LABELS
-        .map(key => `${key} ${quantiles[key]}ms`)
+        .map(key => `${key} ${quantiles['put'][key]}/`
+             + `${isNaN(quantiles['get'][key]) ? '' : quantiles['get'][key]}/`
+             + `${isNaN(quantiles['del'][key]) ? '' : quantiles['del'][key]}ms`)
         .join('|') + '|';
 }
 
 function getLatencyQuantilesCsv() {
-    const quantiles = getLatencyQuantiles();
-    return LATENCY_QUANTILES_LABELS.map(l => quantiles[l]).join(',');
+    const quantiles = {
+        put: getLatencyQuantiles('put'),
+        get: getLatencyQuantiles('get'),
+        del: getLatencyQuantiles('del'),
+    };
+    const csvValues = [];
+    for (const q of LATENCY_QUANTILES_LABELS) {
+        for (const opType of ['put', 'get', 'del']) {
+            csvValues.push(isNaN(quantiles[opType][q]) ? '' : quantiles[opType][q]);
+        }
+    }
+    return csvValues.join(',');
 }
 
-function addLatency(latencyMs) {
-    if (latenciesWindow.length < STATS_QUANTILES_WINDOW_SIZE) {
-        latenciesWindow.push(latencyMs);
+function addLatency(opType, latencyMs) {
+    if (latenciesWindow[opType].length < STATS_QUANTILES_WINDOW_SIZE) {
+        latenciesWindow[opType].push(latencyMs);
     } else {
-        latenciesWindow[latenciesWindowPos] = latencyMs;
-        latenciesWindowPos =
-            (latenciesWindowPos + 1) % STATS_QUANTILES_WINDOW_SIZE;
+        latenciesWindow[opType][latenciesWindowPos[opType]] = latencyMs;
+        latenciesWindowPos[opType] =
+            (latenciesWindowPos[opType] + 1) % STATS_QUANTILES_WINDOW_SIZE;
     }
 }
 
 function showStatus(stats) {
-    const doneCount = stats.successCount + stats.errorCount;
+    let doneCount = 0;
+    let errorCount = 0;
+    for (const opType of ['put', 'get', 'del']) {
+        doneCount += stats.successCount[opType] + stats.errorCount[opType];
+        errorCount += stats.errorCount[opType];
+    }
     const completionRatio = doneCount / stats.totalCount;
     const completeCharCount = Math.floor(completionRatio * STATUS_BAR_LENGTH);
     const statusBarTplOffset = STATUS_BAR_LENGTH - completeCharCount;
+    let opsPerSec;
+    let kBPerSec;
+    if (isNaN(stats.opsPerSec['put']) &&
+        isNaN(stats.opsPerSec['get']) &&
+        isNaN(stats.opsPerSec['del'])) {
+        opsPerSec = '';
+    } else {
+        opsPerSec = ['put', 'get', 'del'].map(
+            opType => isNaN(stats.opsPerSec[opType]) ? '' : stats.opsPerSec[opType].toFixed(0)
+        ).join('/');
+    }
+    if (isNaN(stats.kBPerSec['put']) &&
+        isNaN(stats.kBPerSec['get'])) {
+        kBPerSec = '';
+    } else {
+        kBPerSec = ['put', 'get'].map(
+            opType => isNaN(stats.kBPerSec[opType]) ? '' : stats.kBPerSec[opType].toFixed(0)
+        ).join('/');
+    }
     process.stdout.write(
         '\r['
             + STATUS_BAR_TPL.slice(statusBarTplOffset,
@@ -98,16 +146,21 @@ function showStatus(stats) {
             + `] `
             + `   ${Math.floor(doneCount / stats.totalCount * 100)}`.slice(-3)
             + `% ` + `        ${doneCount}`.slice(-8)
-            + ` ops (${stats.errorCount} errors) `
-            + `${`      ${isNaN(stats.opsPerSec) ? '' : stats.opsPerSec.toFixed(0)}`.slice(-6)} op/s `
-            + `${`        ${isNaN(stats.kBPerSec) ? '' : stats.kBPerSec.toFixed(0)}`.slice(-8)} KB/s `
+            + ` ops (${errorCount} errors) `
+            + `${`               ${opsPerSec}`.slice(-15)} op/s `
+            + `${`               ${kBPerSec}`.slice(-16)} KB/s `
             + getLatencyQuantilesPretty() + '    ');
 }
 
 function outputCsvLine(stats) {
     fs.writeSync(
         csvStatsFile,
-        `${Date.now()},${stats.opsPerSec},${stats.kBPerSec},${getLatencyQuantilesCsv()}\n`);
+        `${Date.now()},${isNaN(stats.opsPerSec['put']) ? '' : stats.opsPerSec['put']},`
+        + `${isNaN(stats.opsPerSec['get']) ? '' : stats.opsPerSec['get']},`
+            + `${isNaN(stats.opsPerSec['del']) ? '' : stats.opsPerSec['del']},`
+            + `${isNaN(stats.kBPerSec['put']) ? '' : stats.kBPerSec['put']},`
+            + `${isNaN(stats.kBPerSec['get']) ? '' : stats.kBPerSec['get']},`
+            + `${getLatencyQuantilesCsv()}\n`);
 }
 
 function permuteIndex(batchObj, n, options) {
@@ -370,15 +423,32 @@ function getKey(batchObj, n, cb) {
 
 function run(batchObj, batchOp, cb) {
     const { options, s3s } = batchObj;
-    let successCount = 0;
-    let errorCount = 0;
+    let successCount = {
+        put: 0,
+        get: 0,
+        del: 0,
+    };
+    let errorCount = {
+        put: 0,
+        get: 0,
+        del: 0,
+    };
 
     function getMashedStats() {
-        const doneCount = successCount + errorCount;
-        const doneCountInPeriod = doneCount - queryStatsWindow().doneCount;
+        const doneCount = {};
+        const opsPerSec = {};
+        const kBPerSec = {};
+        for (const opType of ['put', 'get', 'del']) {
+            doneCount[opType] = successCount[opType] + errorCount[opType];
+            const doneCountInPeriod = doneCount[opType] - queryStatsWindow().doneCount[opType];
+            opsPerSec[opType] = (doneCountInPeriod * 1000) / STATS_PERIOD_MS;
+            if (opType === 'del') {
+                kBPerSec[opType] = 0;
+            } else {
+                kBPerSec[opType] = (doneCountInPeriod * options.size) / STATS_PERIOD_MS;
+            }
+        }
         updateStatsWindow({ doneCount });
-        const opsPerSec = (doneCountInPeriod * 1000) / STATS_PERIOD_MS;
-        const kBPerSec = (doneCountInPeriod * options.size) / STATS_PERIOD_MS;
 
         return {
             totalCount: options.count,
@@ -403,11 +473,15 @@ function run(batchObj, batchOp, cb) {
     let csvStatsInterval;
     if (options.csvStats) {
         csvStatsFile = fs.openSync(options.csvStats, 'w');
+        const labels = ['time', 'putPerSec', 'getPerSec', 'delPerSec', 'putKBPerSec', 'getKBPerSec'];
+        for (const l of LATENCY_QUANTILES_LABELS) {
+            for (const opType of ['put', 'get', 'del']) {
+                labels.push(`${opType}-q-ms:${l}`);
+            }
+        }
         fs.writeSync(
             csvStatsFile,
-            ['time', 'opsPerSec', 'kBPerSec']
-                .concat(LATENCY_QUANTILES_LABELS.map(l => `q-ms:${l}`))
-                .join(',') + '\n');
+            labels.join(',') + '\n');
         csvStatsInterval =
             setInterval(outputCsvLineIntervalFunc,
                         options.csvStatsInterval * 1000);
@@ -417,20 +491,20 @@ function run(batchObj, batchOp, cb) {
         const startTime = Date.now();
         const doOp = () => {
             const opStartTime = Date.now();
-            const endSuccess = keyIdx => {
-                ++successCount;
+            const endSuccess = (opType, keyIdx) => {
+                ++successCount[opType];
                 const endTime = Date.now();
-                addLatency(endTime - opStartTime);
+                addLatency(opType, endTime - opStartTime);
                 opCb(keyIdx);
             };
-            const endError = keyIdx => {
-                ++errorCount;
+            const endError = (opType, keyIdx) => {
+                ++errorCount[opType];
                 opCb(keyIdx);
             };
             getKey(batchObj, n, ({ opType, keyIdx, objKey }) => {
                 batchOp(s3s[n % s3s.length], n, opType, objKey,
-                        () => endSuccess(keyIdx),
-                        () => endError(keyIdx));
+                        () => endSuccess(opType, keyIdx),
+                        () => endError(opType, keyIdx));
             });
         };
         if (nextTime) {
