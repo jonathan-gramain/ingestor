@@ -163,32 +163,32 @@ function outputCsvLine(stats) {
             + `${getLatencyQuantilesCsv()}\n`);
 }
 
-function permuteIndex(batchObj, n, options) {
-    let idx;
+function pickOp(batchObj, n, options) {
+    let opIdx;
     let lcgCache;
     let lcgState;
     const opSelector = Math.random();
     let opType;
     if (batchObj.writeDoneN === -1 || opSelector > batchObj.deleteThreshold) {
-        idx = batchObj.writeN;
+        opIdx = batchObj.writeN;
         ++batchObj.writeN;
         lcgState = batchObj.wLcgState;
         lcgCache = batchObj.wLcgCache;
         opType = 'put';
     } else if (opSelector < batchObj.readThreshold) {
-        idx = batchObj.readN % (batchObj.writeDoneN + 1);
+        opIdx = batchObj.readN % (batchObj.writeDoneN + 1);
         ++batchObj.readN;
         lcgState = batchObj.rdLcgState;
         lcgCache = batchObj.rdLcgCache;
         opType = 'get';
     } else if (opSelector < batchObj.rewriteThreshold) {
-        idx = batchObj.rewriteN % (batchObj.writeDoneN + 1);
+        opIdx = batchObj.rewriteN % (batchObj.writeDoneN + 1);
         ++batchObj.rewriteN;
         lcgState = batchObj.rwLcgState;
         lcgCache = batchObj.rwLcgCache;
         opType = 'put';
     } else {
-        idx = batchObj.deleteN % (batchObj.writeDoneN + 1);
+        opIdx = batchObj.deleteN % (batchObj.writeDoneN + 1);
         ++batchObj.deleteN;
         lcgState = batchObj.delLcgState;
         lcgCache = batchObj.delLcgCache;
@@ -200,27 +200,27 @@ function permuteIndex(batchObj, n, options) {
         if (options.medianSequenceLength > 1 && batchObj.seqLcgState &&
             Math.random() > 1 / options.medianSequenceLength) {
             ++batchObj.seqIdx;
-            return { idx: batchObj.seqLcgState.n + batchObj.seqIdx, opType };
+            return { opType, opIdx, keyIdx: batchObj.seqLcgState.n + batchObj.seqIdx };
         }
         // base the whole next sequence to generate on the same LCG state
         batchObj.seqLcgState = lcgState;
         batchObj.seqIdx = 0;
 
         // generate the next randomized index
-        if (lcgState.iter > idx) {
+        if (lcgState.iter > opIdx) {
             lcgReset(lcgState);
         }
-        while (lcgState.iter < idx) {
+        while (lcgState.iter < opIdx) {
             lcgCache[lcgState.iter] = lcgGen(lcgState);
         }
-        if (lcgState.iter === idx) {
-            return { idx: lcgGen(lcgState), opType };
+        if (lcgState.iter === opIdx) {
+            return { opType, opIdx, keyIdx: lcgGen(lcgState) };
         }
-        const cached = lcgCache[idx];
-        delete lcgCache[idx];
-        return { idx: cached, opType };
+        const cached = lcgCache[opIdx];
+        delete lcgCache[opIdx];
+        return { opType, opIdx, keyIdx: cached };
     }
-    return { idx, opType };
+    return { opType, opIdx, keyIdx: opIdx };
 }
 
 function create(options) {
@@ -266,16 +266,16 @@ function showOptions(batchObj) {
 
 function getOp(batchObj, n) {
     const { options } = batchObj;
-    const { idx, opType } = permuteIndex(batchObj, n, options);
+    const { opType, opIdx, keyIdx } = pickOp(batchObj, n, options);
     if (options.oneObject) {
-        return { opType, keyIdx: idx, objKey: `${options.prefix}test-key` };
+        return { opType, opIdx, objKey: `${options.prefix}test-key` };
     }
     let componentsOfN = [];
     let compWidth;
     if (options.limitPerDelimiter) {
         const delimiterCount = Math.ceil(
             Math.log(options.count) / Math.log(options.limitPerDelimiter) - 1);
-        let _n = idx;
+        let _n = keyIdx;
         while (_n > 0) {
             componentsOfN.push(_n % options.limitPerDelimiter);
             _n = Math.floor(_n / options.limitPerDelimiter);
@@ -285,7 +285,7 @@ function getOp(batchObj, n) {
         }
         compWidth = Math.ceil(Math.log10(options.limitPerDelimiter));
     } else {
-        componentsOfN.push(idx);
+        componentsOfN.push(keyIdx);
         compWidth = Math.ceil(Math.log10(options.count));
     }
     componentsOfN.reverse();
@@ -299,7 +299,7 @@ function getOp(batchObj, n) {
         );
     }
     const suffix = suffixComponents.join('/');
-    return { opType, keyIdx: idx, objKey: `${options.prefix}${suffix}` };
+    return { opType, opIdx, objKey: `${options.prefix}${suffix}` };
 }
 
 function openKeysFromFileReader(batchObj, cb) {
@@ -491,20 +491,20 @@ function run(batchObj, batchOp, cb) {
         const startTime = Date.now();
         const doOp = () => {
             const opStartTime = Date.now();
-            const endSuccess = (opType, keyIdx) => {
+            const endSuccess = (opType, opIdx) => {
                 ++successCount[opType];
                 const endTime = Date.now();
                 addLatency(opType, endTime - opStartTime);
-                opCb(keyIdx);
+                opCb(opIdx);
             };
-            const endError = (opType, keyIdx) => {
+            const endError = (opType, opIdx) => {
                 ++errorCount[opType];
-                opCb(keyIdx);
+                opCb(opIdx);
             };
-            getKey(batchObj, n, ({ opType, keyIdx, objKey }) => {
+            getKey(batchObj, n, ({ opType, opIdx, objKey }) => {
                 batchOp(s3s[n % s3s.length], n, opType, objKey,
-                        () => endSuccess(opType, keyIdx),
-                        () => endError(opType, keyIdx));
+                        () => endSuccess(opType, opIdx),
+                        () => endError(opType, opIdx));
             });
         };
         if (nextTime) {
@@ -543,9 +543,9 @@ function run(batchObj, batchOp, cb) {
         }
     };
 
-    const opCb = keyIdx => {
-        if (keyIdx > batchObj.writeDoneN) {
-            batchObj.doneSet.add(keyIdx);
+    const opCb = opIdx => {
+        if (opIdx > batchObj.writeDoneN) {
+            batchObj.doneSet.add(opIdx);
             while (batchObj.doneSet.has(batchObj.writeDoneN + 1)) {
                 ++batchObj.writeDoneN;
                 batchObj.doneSet.delete(batchObj.writeDoneN);
