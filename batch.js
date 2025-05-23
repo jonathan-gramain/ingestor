@@ -330,6 +330,7 @@ function run(batchObj, batchOp, cb) {
     const { options, s3s } = batchObj;
     let successCount = 0;
     let errorCount = 0;
+    const runId = crypto.randomBytes(16).toString('hex');
 
     function getMashedStats() {
         const doneCount = successCount + errorCount;
@@ -378,11 +379,34 @@ function run(batchObj, batchOp, cb) {
             const endSuccess = () => {
                 ++successCount;
                 const endTime = Date.now();
+                sendEventToClickHouse({
+                    runId: runId,
+                    requestId: crypto.randomBytes(16).toString('hex'), // Placeholder
+                    workerId: `node-worker`, // That might be irrelevant in nodejs
+                    timestamp: new Date(opStartTime).toISOString().slice(0, 19).replace('T', ' '),
+                    requestDuration: (endTime - opStartTime) / 1000.0,
+                    httpCode: 200,
+                    accountName: null, // Placeholder or derive if available
+                    bucketName: options.bucket,
+                    objectKey: 'dummy-key', // Placeholder
+                });
                 addLatency(endTime - opStartTime);
                 next();
             };
             const endError = () => {
                 ++errorCount;
+                const endTime = Date.now();
+                sendEventToClickHouse({
+                    runId: runId,
+                    requestId: crypto.randomBytes(16).toString('hex'), // Placeholder
+                    workerId: `node-worker`, // That might be irrelevant in nodejs
+                    timestamp: new Date(opStartTime).toISOString().slice(0, 19).replace('T', ' '),
+                    requestDuration: (endTime - opStartTime) / 1000.0,
+                    httpCode: 500,
+                    accountName: null, // Placeholder or derive if available
+                    bucketName: options.bucket,
+                    objectKey: 'dummy-key', // Placeholder
+                });
                 next();
             };
             getKey(batchObj, n, objKey => {
@@ -441,6 +465,29 @@ function run(batchObj, batchOp, cb) {
         ++n;
         ++nInFlight;
     }
+}
+
+function sendEventToClickHouse(eventData) {
+    const postData = JSON.stringify(eventData);
+    const options = {
+        hostname: 'localhost',
+        port: 8123,
+        path: '/?query=INSERT%20INTO%20test.requests%20SETTINGS%20async_insert=1,%20wait_for_async_insert=0%20FORMAT%20JSONEachRow',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+        },
+    };
+
+    const req = http.request(options);
+
+    req.on('error', e => {
+        console.error('Error sending event to ClickHouse:', e.message);
+    });
+
+    req.write(postData);
+    req.end();
 }
 
 module.exports = {

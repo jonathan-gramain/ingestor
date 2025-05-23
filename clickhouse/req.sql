@@ -1,0 +1,3 @@
+{"runId": "test1", "requestId": "req1", "workerId": "worker1", "timestamp": "2025-05-23 12:00:00", "requestDuration": 0.5, "httpCode": 200, "accountName": "account1", "bucketName": "bucket1", "objectKey": "object1"}
+{"runId": "test1", "requestId": "req2", "workerId": "worker2", "timestamp": "2025-05-23 12:01:00", "requestDuration": 0.7, "httpCode": 200, "accountName": "account1", "bucketName": "bucket2", "objectKey": "object2"}
+{"runId": "test1", "requestId": "req3", "workerId": "worker3", "timestamp": "2025-05-23 12:02:00", "requestDuration": 0.9, "httpCode": 404, "accountName": "account1", "bucketName": "bucket1", "objectKey": "object3"}
