@@ -6,7 +6,6 @@ function deleteall(options, cb) {
     batch.showOptions(obj);
 
     console.log(`
-    random:          ${options.random ? 'yes' : 'no'}
 `);
 
     const deleteallOp = (s3, n, opType, objKey, endSuccess, endError) => {

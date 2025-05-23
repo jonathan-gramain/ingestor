@@ -20,7 +20,6 @@ function deleteversions(options, cb) {
     batch.showOptions(obj);
 
     console.log(`
-    random:          ${options.random ? 'yes' : 'no'}
     batchsize:       ${options.batchSize ? options.batchSize : 'no batching'}
     bypass governance retention: ${options.bypassGovernanceRetention ? 'yes' : 'no'}
 `);

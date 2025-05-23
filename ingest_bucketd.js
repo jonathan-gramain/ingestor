@@ -48,7 +48,6 @@ function ingest_bucketd(options, cb) {
 
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
-    random:              ${options.random ? 'yes' : 'no'}
 `);
 
     const extraPutOpts = {};

@@ -250,17 +250,22 @@ function create(options) {
 function showOptions(batchObj) {
     const { options } = batchObj;
     process.stdout.write(`
-    endpoint(s):         ${options.endpoint}
-    prefix:              ${options.prefix}
-    bucket:              ${options.bucket}
-    workers:             ${options.workers}
-    object count:        ${options.count}
-    object size:         ${options.size ? options.size : 'N/A'}
-    rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
-    CSV output:          ${options.csvStats ? options.csvStats : 'none'}
-    CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
-    hash keys:           ${options.hashKeys ? 'yes' : 'no'}
-    keys from file:      ${options.keysFromFile ? options.keysFromFile : 'none'}
+    endpoint(s):            ${options.endpoint}
+    prefix:                 ${options.prefix}
+    bucket:                 ${options.bucket}
+    workers:                ${options.workers}
+    object count:           ${options.count}
+    object size:            ${options.size ? options.size : 'N/A'}
+    rate limit:             ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
+    CSV output:             ${options.csvStats ? options.csvStats : 'none'}
+    CSV output interval:    ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
+    hash keys:              ${options.hashKeys ? 'yes' : 'no'}
+    keys from file:         ${options.keysFromFile ? options.keysFromFile : 'none'}
+    read percent:           ${options.readPercent ? options.readPercent : '-'}
+    rewrite percent:        ${options.rewritePercent ? options.rewritePercent : '-'}
+    delete percent:         ${options.deletePercent ? options.deletePercent : '-'}
+    random:                 ${options.random ? 'yes' : 'no'}
+    median sequence length: ${options.medianSequenceLength ? options.medianSequenceLength : '-'}
 `);
 }
 
