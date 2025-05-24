@@ -169,26 +169,32 @@ function pickOp(batchObj, n, options) {
     let lcgState;
     const opSelector = Math.random();
     let opType;
-    if (batchObj.writeDoneN === -1 || opSelector > batchObj.deleteThreshold) {
+    let rrwdMax;
+    if (options.prefixExists) {
+        rrwdMax = options.count;
+    } else {
+        rrwdMax = batchObj.writeDoneN + 1;
+    }
+    if ((!options.prefixExists && batchObj.writeDoneN === -1) || opSelector > batchObj.deleteThreshold) {
         opIdx = batchObj.writeN;
         ++batchObj.writeN;
         lcgState = batchObj.wLcgState;
         lcgCache = batchObj.wLcgCache;
         opType = 'put';
     } else if (opSelector < batchObj.readThreshold) {
-        opIdx = batchObj.readN % (batchObj.writeDoneN + 1);
+        opIdx = batchObj.readN % rrwdMax;
         ++batchObj.readN;
         lcgState = batchObj.rdLcgState;
         lcgCache = batchObj.rdLcgCache;
         opType = 'get';
     } else if (opSelector < batchObj.rewriteThreshold) {
-        opIdx = batchObj.rewriteN % (batchObj.writeDoneN + 1);
+        opIdx = batchObj.rewriteN % rrwdMax;
         ++batchObj.rewriteN;
         lcgState = batchObj.rwLcgState;
         lcgCache = batchObj.rwLcgCache;
         opType = 'put';
     } else {
-        opIdx = batchObj.deleteN % (batchObj.writeDoneN + 1);
+        opIdx = batchObj.deleteN % rrwdMax;
         ++batchObj.deleteN;
         lcgState = batchObj.delLcgState;
         lcgCache = batchObj.delLcgCache;
@@ -365,13 +371,20 @@ function init(batchObj, cb) {
     }
     if (options.random) {
         batchObj.randSeed = Math.floor(Math.random() * 1000000000);
-        batchObj.wLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
+        for (const lcgStateKey of ['wLcgState', 'rdLcgState', 'rwLcgState', 'delLcgState']) {
+            let randSeed;
+            if (options.prefixExists) {
+                randSeed = Math.floor(Math.random() * 1000000000);
+            } else {
+                // if prefix doesn't pre-exist, use the same seed for read/rw/delete ops to
+                // target the keys already written once
+                randSeed = batchObj.randSeed;
+            }
+            batchObj[lcgStateKey] = lcgInit(Number.parseInt(options.count), randSeed);
+        }
         batchObj.wLcgCache = {};
-        batchObj.rdLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
         batchObj.rdLcgCache = {};
-        batchObj.rwLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
         batchObj.rwLcgCache = {};
-        batchObj.delLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
         batchObj.delLcgCache = {};
         batchObj.seqLcgState = null;
         batchObj.seqIdx = 0;

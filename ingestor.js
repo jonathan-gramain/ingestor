@@ -26,6 +26,7 @@ ingestor.command('ingest')
     .option('--count [n]', 'how many objects total', parseIntOpt, 100)
     .option('--size [n]', 'size of individual objects in bytes', parseIntOpt, 1000)
     .option('--prefix [prefix]', 'key prefix', '')
+    .option('--prefix-exists', 'read/rewrite/delete existing keys from the specified prefix, created from a previous ingestor invocation with the same parameters', false)
     .option('--limit-per-delimiter [limit]',
             'max number of object to group in a single delimiter range',
             parseIntOpt, 0)
@@ -154,6 +155,7 @@ ingestor.command('ingest_bucketd')
     .option('--workers [n]', 'how many parallel workers', parseIntOpt, 10)
     .option('--count [n]', 'how many objects total', parseIntOpt, 100)
     .option('--prefix [prefix]', 'key prefix', '')
+    .option('--prefix-exists', 'read/rewrite/delete existing keys from the specified prefix, created from a previous ingestor invocation with the same parameters', false)
     .option('--limit-per-delimiter [limit]',
             'max number of object to group in a single delimiter range',
             parseIntOpt, 0)
