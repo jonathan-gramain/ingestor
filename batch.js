@@ -299,9 +299,9 @@ function getOp(batchObj, n) {
         return `${compMask}${comp}`.slice(-compWidth);
     });
     if (options.hashKeys) {
-        suffixComponents = suffixComponents.map(
-            keyComponent => crypto.createHash('md5').update(keyComponent).digest().toString('hex')
-        );
+        suffixComponents = suffixComponents.map(keyComponent => crypto.createHash('md5').update(keyComponent).digest().toString('hex'));
+    } else if (options.appendKeyHash) {
+        suffixComponents = suffixComponents.map(keyComponent => `${keyComponent}-${crypto.createHash('md5').update(keyComponent).digest().toString('hex')}`);
     }
     const suffix = suffixComponents.join('/');
     return { opType, opIdx, objKey: `${options.prefix}${suffix}` };
