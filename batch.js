@@ -170,6 +170,13 @@ function pickOp(batchObj, n, options) {
     const opSelector = Math.random();
     let opType;
     let rrwdMax;
+
+    // probabilistically decide to extend the current access to the next key, instead of jumping
+    // to the next random key
+    const doSeqAccess = (options.random &&
+                         options.medianSequenceLength > 1 && batchObj.seqLcgState &&
+                         Math.random() > 1 / options.medianSequenceLength);
+
     if (options.prefixExists) {
         rrwdMax = options.count;
     } else {
@@ -177,34 +184,39 @@ function pickOp(batchObj, n, options) {
     }
     if ((!options.prefixExists && batchObj.writeDoneN === -1) || opSelector > batchObj.deleteThreshold) {
         opIdx = batchObj.writeN;
-        ++batchObj.writeN;
+        if (!doSeqAccess) {
+            ++batchObj.writeN;
+        }
         lcgState = batchObj.wLcgState;
         lcgCache = batchObj.wLcgCache;
         opType = 'put';
     } else if (opSelector < batchObj.readThreshold) {
         opIdx = batchObj.readN % rrwdMax;
-        ++batchObj.readN;
+        if (!doSeqAccess) {
+            ++batchObj.readN;
+        }
         lcgState = batchObj.rdLcgState;
         lcgCache = batchObj.rdLcgCache;
         opType = 'get';
     } else if (opSelector < batchObj.rewriteThreshold) {
         opIdx = batchObj.rewriteN % rrwdMax;
-        ++batchObj.rewriteN;
+        if (!doSeqAccess) {
+            ++batchObj.rewriteN;
+        }
         lcgState = batchObj.rwLcgState;
         lcgCache = batchObj.rwLcgCache;
         opType = 'put';
     } else {
         opIdx = batchObj.deleteN % rrwdMax;
-        ++batchObj.deleteN;
+        if (!doSeqAccess) {
+            ++batchObj.deleteN;
+        }
         lcgState = batchObj.delLcgState;
         lcgCache = batchObj.delLcgCache;
         opType = 'del';
     }
     if (options.random) {
-        // probabilistically decide to either extend the current access
-        // to the next key, or jump to the next random key
-        if (options.medianSequenceLength > 1 && batchObj.seqLcgState &&
-            Math.random() > 1 / options.medianSequenceLength) {
+        if (doSeqAccess) {
             ++batchObj.seqIdx;
             return { opType, opIdx, keyIdx: batchObj.seqLcgState.n + batchObj.seqIdx };
         }
