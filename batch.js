@@ -165,7 +165,6 @@ function outputCsvLine(stats) {
 
 function pickOp(batchObj, n, options) {
     let opIdx;
-    let lcgCache;
     let lcgState;
     const opSelector = Math.random();
     let opType;
@@ -188,7 +187,6 @@ function pickOp(batchObj, n, options) {
             ++batchObj.writeN;
         }
         lcgState = batchObj.wLcgState;
-        lcgCache = batchObj.wLcgCache;
         opType = 'put';
     } else if (opSelector < batchObj.readThreshold) {
         opIdx = batchObj.readN % rrwdMax;
@@ -196,7 +194,6 @@ function pickOp(batchObj, n, options) {
             ++batchObj.readN;
         }
         lcgState = batchObj.rdLcgState;
-        lcgCache = batchObj.rdLcgCache;
         opType = 'get';
     } else if (opSelector < batchObj.rewriteThreshold) {
         opIdx = batchObj.rewriteN % rrwdMax;
@@ -204,7 +201,6 @@ function pickOp(batchObj, n, options) {
             ++batchObj.rewriteN;
         }
         lcgState = batchObj.rwLcgState;
-        lcgCache = batchObj.rwLcgCache;
         opType = 'put';
     } else {
         opIdx = batchObj.deleteN % rrwdMax;
@@ -212,7 +208,6 @@ function pickOp(batchObj, n, options) {
             ++batchObj.deleteN;
         }
         lcgState = batchObj.delLcgState;
-        lcgCache = batchObj.delLcgCache;
         opType = 'del';
     }
     if (options.random) {
@@ -228,15 +223,7 @@ function pickOp(batchObj, n, options) {
         if (lcgState.iter > opIdx) {
             lcgReset(lcgState);
         }
-        while (lcgState.iter < opIdx) {
-            lcgCache[lcgState.iter] = lcgGen(lcgState);
-        }
-        if (lcgState.iter === opIdx) {
-            return { opType, opIdx, keyIdx: lcgGen(lcgState) };
-        }
-        const cached = lcgCache[opIdx];
-        delete lcgCache[opIdx];
-        return { opType, opIdx, keyIdx: cached };
+        return { opType, opIdx, keyIdx: lcgGen(lcgState) };
     }
     return { opType, opIdx, keyIdx: opIdx };
 }
@@ -394,10 +381,6 @@ function init(batchObj, cb) {
             }
             batchObj[lcgStateKey] = lcgInit(Number.parseInt(options.count), randSeed);
         }
-        batchObj.wLcgCache = {};
-        batchObj.rdLcgCache = {};
-        batchObj.rwLcgCache = {};
-        batchObj.delLcgCache = {};
         batchObj.seqLcgState = null;
         batchObj.seqIdx = 0;
     }
