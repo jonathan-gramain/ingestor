@@ -145,7 +145,7 @@ function showStatus(stats) {
                                    statusBarTplOffset + STATUS_BAR_LENGTH)
             + `] `
             + `   ${Math.floor(doneCount / stats.totalCount * 100)}`.slice(-3)
-            + `% ` + `        ${doneCount}`.slice(-8)
+            + `% ` + `          ${doneCount}`.slice(-10)
             + ` ops (${errorCount} errors) `
             + `${`               ${opsPerSec}`.slice(-15)} op/s `
             + `${`               ${kBPerSec}`.slice(-16)} KB/s `
