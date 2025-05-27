@@ -202,8 +202,8 @@ ingestor.command('ingest_bucketd')
             process.exit(1);
         }
         const sumPercent = options.readPercent + options.rewritePercent + options.deletePercent;
-        if (sumPercent >= 100) {
-            console.error(`sum of --read-percent, --rewrite-percent and --delete-percent exceed or equal 100 (${sumPercent})`);
+        if (sumPercent > 100) {
+            console.error(`sum of --read-percent, --rewrite-percent and --delete-percent exceed 100 (${sumPercent})`);
             process.exit(1);
         }
         ingest_bucketd(options, code => process.exit(code));
