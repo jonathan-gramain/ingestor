@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS test.requests
     opType            String,
     requestDuration   Float64,
     httpCode          UInt16,
-    bucketName        Nullable(String),
-    objectKey         Nullable(String),
+    bucketName        String,
+    objectKey         String,
 )
 Engine = MergeTree()
 ORDER BY (runId, timestamp)
