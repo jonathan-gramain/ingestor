@@ -9,7 +9,7 @@ const lineReader = require('line-reader');
 
 const { lcgInit, lcgGen, lcgReset } = require('./lcg');
 
-const STATUS_BAR_LENGTH = 60;
+const STATUS_BAR_LENGTH = 40;
 const STATUS_BAR_TPL =
       new Array(STATUS_BAR_LENGTH).fill('=').concat(
           new Array(STATUS_BAR_LENGTH).fill(' ')).join('');
@@ -31,11 +31,19 @@ const LATENCY_QUANTILES_LABELS = Object.entries(LATENCY_QUANTILES)
 
 const statsWindow = new Array(Math.max(
     Math.floor(STATS_PERIOD_MS / STATUS_UPDATE_PERIOD_MS),
-    1)).fill({});
+    1)).fill({ doneCount: {} });
 let statsWindowIndex = 0;
 
-const latenciesWindow = [];
-let latenciesWindowPos = 0;
+const latenciesWindow = {
+    put: [],
+    get: [],
+    del: [],
+};
+let latenciesWindowPos = {
+    put: 0,
+    get: 0,
+    del: 0,
+};
 
 let csvStatsFile = null;
 let keysFromFileReader = null;
@@ -50,8 +58,8 @@ function updateStatsWindow(statsObj) {
     statsWindowIndex = (statsWindowIndex + 1) % statsWindow.length;
 }
 
-function getLatencyQuantiles() {
-    const sortedLatencies = latenciesWindow.concat().sort((a, b) => a - b);
+function getLatencyQuantiles(opType) {
+    const sortedLatencies = latenciesWindow[opType].concat().sort((a, b) => a - b);
     const quantiles = {};
     if (sortedLatencies[0] === undefined) {
         LATENCY_QUANTILES_LABELS.forEach(l => quantiles[l] = NaN);
@@ -65,81 +73,159 @@ function getLatencyQuantiles() {
 }
 
 function getLatencyQuantilesPretty() {
-    const quantiles = getLatencyQuantiles();
+    const quantiles = {
+        put: getLatencyQuantiles('put'),
+        get: getLatencyQuantiles('get'),
+        del: getLatencyQuantiles('del'),
+    };
     return '|' + LATENCY_QUANTILES_LABELS
-        .map(key => `${key} ${quantiles[key]}ms`)
+        .map(key => `${key} ${quantiles['put'][key]}/`
+             + `${isNaN(quantiles['get'][key]) ? '' : quantiles['get'][key]}/`
+             + `${isNaN(quantiles['del'][key]) ? '' : quantiles['del'][key]}ms`)
         .join('|') + '|';
 }
 
 function getLatencyQuantilesCsv() {
-    const quantiles = getLatencyQuantiles();
-    return LATENCY_QUANTILES_LABELS.map(l => quantiles[l]).join(',');
+    const quantiles = {
+        put: getLatencyQuantiles('put'),
+        get: getLatencyQuantiles('get'),
+        del: getLatencyQuantiles('del'),
+    };
+    const csvValues = [];
+    for (const q of LATENCY_QUANTILES_LABELS) {
+        for (const opType of ['put', 'get', 'del']) {
+            csvValues.push(isNaN(quantiles[opType][q]) ? '' : quantiles[opType][q]);
+        }
+    }
+    return csvValues.join(',');
 }
 
-function addLatency(latencyMs) {
-    if (latenciesWindow.length < STATS_QUANTILES_WINDOW_SIZE) {
-        latenciesWindow.push(latencyMs);
+function addLatency(opType, latencyMs) {
+    if (latenciesWindow[opType].length < STATS_QUANTILES_WINDOW_SIZE) {
+        latenciesWindow[opType].push(latencyMs);
     } else {
-        latenciesWindow[latenciesWindowPos] = latencyMs;
-        latenciesWindowPos =
-            (latenciesWindowPos + 1) % STATS_QUANTILES_WINDOW_SIZE;
+        latenciesWindow[opType][latenciesWindowPos[opType]] = latencyMs;
+        latenciesWindowPos[opType] =
+            (latenciesWindowPos[opType] + 1) % STATS_QUANTILES_WINDOW_SIZE;
     }
 }
 
 function showStatus(stats) {
-    const doneCount = stats.successCount + stats.errorCount;
+    let doneCount = 0;
+    let errorCount = 0;
+    for (const opType of ['put', 'get', 'del']) {
+        doneCount += stats.successCount[opType] + stats.errorCount[opType];
+        errorCount += stats.errorCount[opType];
+    }
     const completionRatio = doneCount / stats.totalCount;
     const completeCharCount = Math.floor(completionRatio * STATUS_BAR_LENGTH);
     const statusBarTplOffset = STATUS_BAR_LENGTH - completeCharCount;
+    let opsPerSec;
+    let kBPerSec;
+    if (isNaN(stats.opsPerSec['put']) &&
+        isNaN(stats.opsPerSec['get']) &&
+        isNaN(stats.opsPerSec['del'])) {
+        opsPerSec = '';
+    } else {
+        opsPerSec = ['put', 'get', 'del'].map(
+            opType => isNaN(stats.opsPerSec[opType]) ? '' : stats.opsPerSec[opType].toFixed(0)
+        ).join('/');
+    }
+    if (isNaN(stats.kBPerSec['put']) &&
+        isNaN(stats.kBPerSec['get'])) {
+        kBPerSec = '';
+    } else {
+        kBPerSec = ['put', 'get'].map(
+            opType => isNaN(stats.kBPerSec[opType]) ? '' : stats.kBPerSec[opType].toFixed(0)
+        ).join('/');
+    }
     process.stdout.write(
         '\r['
             + STATUS_BAR_TPL.slice(statusBarTplOffset,
                                    statusBarTplOffset + STATUS_BAR_LENGTH)
             + `] `
             + `   ${Math.floor(doneCount / stats.totalCount * 100)}`.slice(-3)
-            + `% ` + `        ${doneCount}`.slice(-8)
-            + ` ops (${stats.errorCount} errors) `
-            + `${`      ${isNaN(stats.opsPerSec) ? '' : stats.opsPerSec.toFixed(0)}`.slice(-6)} op/s `
-            + `${`        ${isNaN(stats.kBPerSec) ? '' : stats.kBPerSec.toFixed(0)}`.slice(-8)} KB/s `
+            + `% ` + `          ${doneCount}`.slice(-10)
+            + ` ops (${errorCount} errors) `
+            + `${`               ${opsPerSec}`.slice(-15)} op/s `
+            + `${`               ${kBPerSec}`.slice(-16)} KB/s `
             + getLatencyQuantilesPretty() + '    ');
 }
 
 function outputCsvLine(stats) {
     fs.writeSync(
         csvStatsFile,
-        `${Date.now()},${stats.opsPerSec},${stats.kBPerSec},${getLatencyQuantilesCsv()}\n`);
+        `${Date.now()},${isNaN(stats.opsPerSec['put']) ? '' : stats.opsPerSec['put']},`
+        + `${isNaN(stats.opsPerSec['get']) ? '' : stats.opsPerSec['get']},`
+            + `${isNaN(stats.opsPerSec['del']) ? '' : stats.opsPerSec['del']},`
+            + `${isNaN(stats.kBPerSec['put']) ? '' : stats.kBPerSec['put']},`
+            + `${isNaN(stats.kBPerSec['get']) ? '' : stats.kBPerSec['get']},`
+            + `${getLatencyQuantilesCsv()}\n`);
 }
 
-function permuteIndex(batchObj, n, options) {
-    const rewrite = (options.rewritePercent && Math.random() < options.rewritePercent / 100);
-    let idx;
-    let lcgCache;
+function pickOp(batchObj, n, options) {
+    let opIdx;
     let lcgState;
-    if (rewrite) {
-        idx = batchObj.rwn % n;
-        ++batchObj.rwn;
-        lcgState = batchObj.rwLcgState;
-        lcgCache = batchObj.rwLcgCache;
+    const opSelector = Math.random();
+    let opType;
+    let rrwdMax;
+
+    // probabilistically decide to extend the current access to the next key, instead of jumping
+    // to the next random key
+    const doSeqAccess = (options.random &&
+                         options.medianSequenceLength > 1 && batchObj.seqLcgState &&
+                         Math.random() > 1 / options.medianSequenceLength);
+
+    if (options.prefixExists) {
+        rrwdMax = options.count;
     } else {
-        idx = n;
-        lcgState = batchObj.lcgState;
-        lcgCache = batchObj.lcgCache;
+        rrwdMax = batchObj.writeDoneN + 1;
+    }
+    if ((!options.prefixExists && batchObj.writeDoneN === -1) || opSelector > batchObj.deleteThreshold) {
+        opIdx = batchObj.writeN;
+        if (!doSeqAccess) {
+            ++batchObj.writeN;
+        }
+        lcgState = batchObj.wLcgState;
+        opType = 'put';
+    } else if (opSelector < batchObj.readThreshold) {
+        opIdx = batchObj.readN % rrwdMax;
+        if (!doSeqAccess) {
+            ++batchObj.readN;
+        }
+        lcgState = batchObj.rdLcgState;
+        opType = 'get';
+    } else if (opSelector < batchObj.rewriteThreshold) {
+        opIdx = batchObj.rewriteN % rrwdMax;
+        if (!doSeqAccess) {
+            ++batchObj.rewriteN;
+        }
+        lcgState = batchObj.rwLcgState;
+        opType = 'put';
+    } else {
+        opIdx = batchObj.deleteN % rrwdMax;
+        if (!doSeqAccess) {
+            ++batchObj.deleteN;
+        }
+        lcgState = batchObj.delLcgState;
+        opType = 'del';
     }
     if (options.random) {
-        if (lcgState.iter > idx) {
+        if (doSeqAccess) {
+            ++batchObj.seqIdx;
+            return { opType, opIdx, keyIdx: batchObj.seqLcgState.n + batchObj.seqIdx };
+        }
+        // base the whole next sequence to generate on the same LCG state
+        batchObj.seqLcgState = lcgState;
+        batchObj.seqIdx = 0;
+
+        // generate the next randomized index
+        if (lcgState.iter > opIdx) {
             lcgReset(lcgState);
         }
-        while (lcgState.iter < idx) {
-            lcgCache[lcgState.iter] = lcgGen(lcgState);
-        }
-        if (lcgState.iter === idx) {
-            return lcgGen(lcgState);
-        }
-        const cached = lcgCache[idx];
-        delete lcgCache[idx];
-        return cached;
+        return { opType, opIdx, keyIdx: lcgGen(lcgState) };
     }
-    return idx;
+    return { opType, opIdx, keyIdx: opIdx };
 }
 
 function create(options) {
@@ -169,32 +255,37 @@ function create(options) {
 function showOptions(batchObj) {
     const { options } = batchObj;
     process.stdout.write(`
-    endpoint(s):         ${options.endpoint}
-    prefix:              ${options.prefix}
-    bucket:              ${options.bucket}
-    workers:             ${options.workers}
-    object count:        ${options.count}
-    object size:         ${options.size ? options.size : 'N/A'}
-    rate limit:          ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
-    CSV output:          ${options.csvStats ? options.csvStats : 'none'}
-    CSV output interval: ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
-    hash keys:           ${options.hashKeys ? 'yes' : 'no'}
-    keys from file:      ${options.keysFromFile ? options.keysFromFile : 'none'}
+    endpoint(s):            ${options.endpoint}
+    prefix:                 ${options.prefix}
+    bucket:                 ${options.bucket}
+    workers:                ${options.workers}
+    object count:           ${options.count}
+    object size:            ${options.size ? options.size : 'N/A'}
+    rate limit:             ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
+    CSV output:             ${options.csvStats ? options.csvStats : 'none'}
+    CSV output interval:    ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
+    hash keys:              ${options.hashKeys ? 'yes' : 'no'}
+    keys from file:         ${options.keysFromFile ? options.keysFromFile : 'none'}
+    read percent:           ${options.readPercent ? options.readPercent : '-'}
+    rewrite percent:        ${options.rewritePercent ? options.rewritePercent : '-'}
+    delete percent:         ${options.deletePercent ? options.deletePercent : '-'}
+    random:                 ${options.random ? 'yes' : 'no'}
+    median sequence length: ${options.medianSequenceLength ? options.medianSequenceLength : '-'}
 `);
 }
 
-function getGeneratedKey(batchObj, n) {
+function getOp(batchObj, n) {
     const { options } = batchObj;
+    const { opType, opIdx, keyIdx } = pickOp(batchObj, n, options);
     if (options.oneObject) {
-        return `${options.prefix}test-key`;
+        return { opType, opIdx, objKey: `${options.prefix}test-key` };
     }
-    const idx = permuteIndex(batchObj, n, options);
     let componentsOfN = [];
     let compWidth;
     if (options.limitPerDelimiter) {
         const delimiterCount = Math.ceil(
             Math.log(options.count) / Math.log(options.limitPerDelimiter) - 1);
-        let _n = idx;
+        let _n = keyIdx;
         while (_n > 0) {
             componentsOfN.push(_n % options.limitPerDelimiter);
             _n = Math.floor(_n / options.limitPerDelimiter);
@@ -204,7 +295,7 @@ function getGeneratedKey(batchObj, n) {
         }
         compWidth = Math.ceil(Math.log10(options.limitPerDelimiter));
     } else {
-        componentsOfN.push(idx);
+        componentsOfN.push(keyIdx);
         compWidth = Math.ceil(Math.log10(options.count));
     }
     componentsOfN.reverse();
@@ -213,12 +304,12 @@ function getGeneratedKey(batchObj, n) {
         return `${compMask}${comp}`.slice(-compWidth);
     });
     if (options.hashKeys) {
-        suffixComponents = suffixComponents.map(
-            keyComponent => crypto.createHash('md5').update(keyComponent).digest().toString('hex')
-        );
+        suffixComponents = suffixComponents.map(keyComponent => crypto.createHash('md5').update(keyComponent).digest().toString('hex'));
+    } else if (options.appendKeyHash) {
+        suffixComponents = suffixComponents.map(keyComponent => `${keyComponent}-${crypto.createHash('md5').update(keyComponent).digest().toString('hex')}`);
     }
     const suffix = suffixComponents.join('/');
-    return `${options.prefix}${suffix}`;
+    return { opType, opIdx, objKey: `${options.prefix}${suffix}` };
 }
 
 function openKeysFromFileReader(batchObj, cb) {
@@ -279,12 +370,29 @@ function init(batchObj, cb) {
     }
     if (options.random) {
         batchObj.randSeed = Math.floor(Math.random() * 1000000000);
-        batchObj.lcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
-        batchObj.lcgCache = {};
-        batchObj.rwLcgState = lcgInit(Number.parseInt(options.count), batchObj.randSeed);
-        batchObj.rwLcgCache = {};
+        for (const lcgStateKey of ['wLcgState', 'rdLcgState', 'rwLcgState', 'delLcgState']) {
+            let randSeed;
+            if (options.prefixExists) {
+                randSeed = Math.floor(Math.random() * 1000000000);
+            } else {
+                // if prefix doesn't pre-exist, use the same seed for read/rw/delete ops to
+                // target the keys already written once
+                randSeed = batchObj.randSeed;
+            }
+            batchObj[lcgStateKey] = lcgInit(Number.parseInt(options.count), randSeed);
+        }
+        batchObj.seqLcgState = null;
+        batchObj.seqIdx = 0;
     }
-    batchObj.rwn = 0;
+    batchObj.doneSet = new Set();
+    batchObj.writeDoneN = -1;
+    batchObj.writeN = 0;
+    batchObj.readN = 0;
+    batchObj.rewriteN = 0;
+    batchObj.deleteN = 0;
+    batchObj.readThreshold = options.readPercent / 100;
+    batchObj.rewriteThreshold = batchObj.readThreshold + options.rewritePercent / 100;
+    batchObj.deleteThreshold = batchObj.rewriteThreshold + options.deletePercent / 100;
     return process.nextTick(cb);
 }
 
@@ -312,32 +420,49 @@ function getKey(batchObj, n, cb) {
             if (keyList) {
                 return next(null, keyList[n % keyList.length]);
             }
-            const key = getGeneratedKey(batchObj, n);
-            return next(null, key);
+            const op = getOp(batchObj, n);
+            return process.nextTick(() => next(null, op));
         },
-    ], (err, key) => {
+    ], (err, op) => {
         if (err) {
             process.exit(1);
         }
         if (options.verbose) {
-            console.log(`next key: ${key}`);
+            console.log(`next op: ${JSON.stringify(op)}`);
         }
-        return cb(key);
+        return cb(op);
     });
 }
 
 function run(batchObj, batchOp, cb) {
     const { options, s3s } = batchObj;
-    let successCount = 0;
-    let errorCount = 0;
+    let successCount = {
+        put: 0,
+        get: 0,
+        del: 0,
+    };
+    let errorCount = {
+        put: 0,
+        get: 0,
+        del: 0,
+    };
     const runId = crypto.randomBytes(16).toString('hex');
 
     function getMashedStats() {
-        const doneCount = successCount + errorCount;
-        const doneCountInPeriod = doneCount - queryStatsWindow().doneCount;
+        const doneCount = {};
+        const opsPerSec = {};
+        const kBPerSec = {};
+        for (const opType of ['put', 'get', 'del']) {
+            doneCount[opType] = successCount[opType] + errorCount[opType];
+            const doneCountInPeriod = doneCount[opType] - queryStatsWindow().doneCount[opType];
+            opsPerSec[opType] = (doneCountInPeriod * 1000) / STATS_PERIOD_MS;
+            if (opType === 'del') {
+                kBPerSec[opType] = 0;
+            } else {
+                kBPerSec[opType] = (doneCountInPeriod * options.size) / STATS_PERIOD_MS;
+            }
+        }
         updateStatsWindow({ doneCount });
-        const opsPerSec = (doneCountInPeriod * 1000) / STATS_PERIOD_MS;
-        const kBPerSec = (doneCountInPeriod * options.size) / STATS_PERIOD_MS;
 
         return {
             totalCount: options.count,
@@ -362,22 +487,26 @@ function run(batchObj, batchOp, cb) {
     let csvStatsInterval;
     if (options.csvStats) {
         csvStatsFile = fs.openSync(options.csvStats, 'w');
+        const labels = ['time', 'putPerSec', 'getPerSec', 'delPerSec', 'putKBPerSec', 'getKBPerSec'];
+        for (const l of LATENCY_QUANTILES_LABELS) {
+            for (const opType of ['put', 'get', 'del']) {
+                labels.push(`${opType}-q-ms:${l}`);
+            }
+        }
         fs.writeSync(
             csvStatsFile,
-            ['time', 'opsPerSec', 'kBPerSec']
-                .concat(LATENCY_QUANTILES_LABELS.map(l => `q-ms:${l}`))
-                .join(',') + '\n');
+            labels.join(',') + '\n');
         csvStatsInterval =
             setInterval(outputCsvLineIntervalFunc,
                         options.csvStatsInterval * 1000);
     }
     let nextTime = options.rateLimit ? Date.now() : null;
-    const triggerOp = (n, next) => {
+    const triggerOp = (n, opCb) => {
         const startTime = Date.now();
         const doOp = () => {
             const opStartTime = Date.now();
-            const endSuccess = () => {
-                ++successCount;
+            const endSuccess = (opType, opIdx) => {
+                ++successCount[opType];
                 const endTime = Date.now();
                 sendEventToClickHouse({
                     runId: runId,
@@ -390,10 +519,11 @@ function run(batchObj, batchOp, cb) {
                     bucketName: options.bucket,
                     objectKey: 'dummy-key', // Placeholder
                 });
-                addLatency(endTime - opStartTime);
-                next();
+                addLatency(opType, endTime - opStartTime);
+                opCb(opIdx);
             };
-            const endError = () => {
+            const endError = (opType, opIdx) => {
+                ++errorCount[opType];
                 ++errorCount;
                 const endTime = Date.now();
                 sendEventToClickHouse({
@@ -407,10 +537,12 @@ function run(batchObj, batchOp, cb) {
                     bucketName: options.bucket,
                     objectKey: 'dummy-key', // Placeholder
                 });
-                next();
+                opCb(opIdx);
             };
-            getKey(batchObj, n, objKey => {
-                batchOp(s3s[n % s3s.length], n, objKey, endSuccess, endError);
+            getKey(batchObj, n, ({ opType, opIdx, objKey }) => {
+                batchOp(s3s[n % s3s.length], n, opType, objKey,
+                        () => endSuccess(opType, opIdx),
+                        () => endError(opType, opIdx));
             });
         };
         if (nextTime) {
@@ -449,7 +581,14 @@ function run(batchObj, batchOp, cb) {
         }
     };
 
-    const opCb = () => {
+    const opCb = opIdx => {
+        if (opIdx > batchObj.writeDoneN) {
+            batchObj.doneSet.add(opIdx);
+            while (batchObj.doneSet.has(batchObj.writeDoneN + 1)) {
+                ++batchObj.writeDoneN;
+                batchObj.doneSet.delete(batchObj.writeDoneN);
+            }
+        }
         if (n < options.count) {
             triggerOp(n, opCb);
             ++n;

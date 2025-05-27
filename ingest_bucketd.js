@@ -4,10 +4,11 @@ const bucketclient = require('bucketclient');
 const batch = require('./batch');
 
 const MD_TEMPLATE = Buffer.from(`{"owner-display-name":"test_1740598852","owner-id":"79704e05bbd2029a29a1ed79a1d30254db11f52e059ec7483ae1fe6abf19d7ce","content-length":1000,"content-type":"application/octet-stream","content-md5":"HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH","x-amz-version-id":"null","x-amz-server-version-id":"","x-amz-storage-class":"STANDARD","x-amz-server-side-encryption":"","x-amz-server-side-encryption-aws-kms-key-id":"","x-amz-server-side-encryption-customer-algorithm":"","x-amz-website-redirect-location":"","acl":{"Canned":"private","FULL_CONTROL":[],"WRITE_ACP":[],"READ":[],"READ_ACP":[]},"key":"","location":[{"key":"KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK","size":1000,"start":0,"dataStoreName":"site1","dataStoreType":"scality","dataStoreETag":"1:TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"}],"isDeleteMarker":false,"tags":{},"replicationInfo":{"status":"","backends":[],"content":[],"destination":"","storageClass":"","role":"","storageType":"","dataStoreVersionId":""},"dataStoreName":"site1","originOp":"s3:ObjectCreated:Put","last-modified":"2001-02-03T04:05:06.007Z","md-model-version":3}`, 'ascii');
-
 const MD_TEMPLATE_MD5_OFFSET = MD_TEMPLATE.indexOf('HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH');
 const MD_TEMPLATE_LOCATION_KEY_OFFSET = MD_TEMPLATE.indexOf('KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK');
 const MD_TEMPLATE_ETAG_OFFSET = MD_TEMPLATE.indexOf('TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT');
+
+const MD_DELETEMARKER = `{"owner-display-name":"test_1740598852","owner-id":"79704e05bbd2029a29a1ed79a1d30254db11f52e059ec7483ae1fe6abf19d7ce","content-length":0,"content-md5":"d41d8cd98f00b204e9800998ecf8427e","x-amz-version-id":"null","x-amz-server-version-id":"","x-amz-storage-class":"STANDARD","x-amz-server-side-encryption":"","x-amz-server-side-encryption-aws-kms-key-id":"","x-amz-server-side-encryption-customer-algorithm":"","x-amz-website-redirect-location":"","acl":{"Canned":"private","FULL_CONTROL":[],"WRITE_ACP":[],"READ":[],"READ_ACP":[]},"key":"","location":null,"isDeleteMarker":true,"tags":{},"replicationInfo":{"status":"","backends":[],"content":[],"destination":"","storageClass":"","role":"","storageType":"","dataStoreVersionId":""},"dataStoreName":"site1","originOp":"s3:ObjectRemoved:DeleteMarkerCreated","last-modified":"2001-02-03T04:05:06.007Z","md-model-version":3}`;
 
 const MD5_ZEROS = Buffer.from('00000000000000000000000000000000');
 const LOCATION_ZEROS = Buffer.from('0000000000000000000000000000000000000000');
@@ -48,8 +49,6 @@ function ingest_bucketd(options, cb) {
 
     console.log(`
     one object:          ${options.oneObject ? 'yes' : 'no'}
-    del after put:       ${options.deleteAfterPut ? 'yes' : 'no'}
-    random:              ${options.random ? 'yes' : 'no'}
 `);
 
     const extraPutOpts = {};
@@ -62,27 +61,60 @@ function ingest_bucketd(options, cb) {
         bc.putObject(bucket, key, body, uids, cb, params);
     };
 
-    const ingestOp = (bc, n, objKey, endSuccess, endError) => {
+    const getObject = (bc, bucket, key, uids, cb) => {
+        bc.getObject(bucket, key, uids, cb, {});
+    };
+
+    const deleteObject = (bc, bucket, key, uids, cb) => {
+        bc.deleteObject(bucket, key, uids, cb, {});
+    };
+
+    const ingestOp = (bc, n, opType, objKey, endSuccess, endError) => {
         const uids = n.toString();
-        const body = generateBody();
-        putObject(bc, options.bucket, objKey, body, uids, err => {
-            if (err) {
-                console.error(`error during "PUT ${options.bucket}/${objKey}":`,
-                              err.message);
-                return endError();
-            }
-            if (!options.deleteAfterPut) {
-                return endSuccess();
-            }
-            return bc.deleteObject(options.bucket, objKey, uids, err => {
+        switch (opType) {
+        case 'put':
+            const body = generateBody();
+            putObject(bc, options.bucket, objKey, body, uids, err => {
                 if (err) {
-                    console.error(`error during "DELETE ${options.bucket}/${objKey}":`,
+                    console.error(`error during "POST ${options.bucket}/${objKey}":`,
                                   err.message);
                     return endError();
                 }
                 return endSuccess();
             });
-        });
+            break;
+        case 'get':
+            getObject(bc, options.bucket, objKey, uids, err => {
+                if (err && err.message !== 'NoSuchKey') {
+                    console.error(`error during "GET ${options.bucket}/${objKey}":`,
+                                  err.message);
+                    return endError();
+                }
+                return endSuccess();
+            });
+            break;
+        case 'del':
+            if (options.versioned) {
+                putObject(bc, options.bucket, objKey, MD_DELETEMARKER, uids, err => {
+                    if (err) {
+                        console.error(`error during "POST ${options.bucket}/${objKey}" (DM):`,
+                                      err.message);
+                        return endError();
+                    }
+                    return endSuccess();
+                });
+            } else {
+                deleteObject(bc, options.bucket, objKey, uids, err => {
+                    if (err) {
+                        console.error(`error during "DELETE ${options.bucket}/${objKey}":`,
+                                      err.message);
+                        return endError();
+                    }
+                    return endSuccess();
+                });
+            }
+            break;
+        }
     };
     batch.init(batchObj, err => {
         if (err) {

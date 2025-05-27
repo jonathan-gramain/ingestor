@@ -20,7 +20,6 @@ function deleteversions(options, cb) {
     batch.showOptions(obj);
 
     console.log(`
-    random:          ${options.random ? 'yes' : 'no'}
     batchsize:       ${options.batchSize ? options.batchSize : 'no batching'}
     bypass governance retention: ${options.bypassGovernanceRetention ? 'yes' : 'no'}
 `);
@@ -30,7 +29,8 @@ function deleteversions(options, cb) {
         extraDeleteOpts.BypassGovernanceRetention = true;
     }
 
-    const deleteversionsOp = (s3, n, objKey, endSuccess, endError) => {
+    const deleteversionsOp = (s3, n, opType, objKey, endSuccess, endError) => {
+        // opType ignored for now
         const idx = permuteIndex(n, options);
         const { Key, VersionId } = allKeys[idx];
         if (options.batchSize) {

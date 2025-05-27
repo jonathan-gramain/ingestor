@@ -1,14 +1,5 @@
 const batch = require('./batch');
 
-function permuteIndex(n, options) {
-    if (options.random) {
-        // multiply by a prime number to have a somewhat randomized
-        // bijective mapping and read all objects exactly once
-        return (n * 5776357) % options.count;
-    }
-    return n;
-}
-
 function readall(options, cb) {
     const obj = batch.create(options);
 
@@ -18,7 +9,8 @@ function readall(options, cb) {
     random:          ${options.random ? 'yes' : 'no'}
 `);
 
-    const readallOp = (s3, n, objKey, endSuccess, endError) => {
+    const readallOp = (s3, n, opType, objKey, endSuccess, endError) => {
+        // opType ignored for now
         s3.getObject({
             Bucket: options.bucket,
             Key: objKey,
