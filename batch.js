@@ -49,6 +49,32 @@ let csvStatsFile = null;
 let keysFromFileReader = null;
 let keyList = null;
 
+const clickhouseEventQueue = async.cargoQueue((events, cb) => {
+    const postData = Buffer.concat(events.map(event => Buffer.from(JSON.stringify(event))));
+    const options = {
+        hostname: 'localhost',
+        port: 8123,
+        path: '/?query=INSERT%20INTO%20test.requests%20SETTINGS%20async_insert=1,%20wait_for_async_insert=0%20FORMAT%20JSONEachRow',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+        },
+    };
+
+    const req = http.request(options, res => {
+        res.on('end', cb);
+        res.resume();
+    });
+
+    req.on('error', e => {
+        console.error('Error sending event to ClickHouse:', e.message);
+    });
+
+    req.write(postData);
+    req.end();
+}, 4);
+
 function queryStatsWindow() {
     return statsWindow[statsWindowIndex];
 }
@@ -572,11 +598,22 @@ function run(batchObj, batchOp, cb) {
             fs.closeSync(csvStatsFile);
             clearInterval(csvStatsInterval);
         }
-        if (keysFromFileReader) {
-            keysFromFileReader.close(cb);
-        } else {
-            cb();
-        }
+        async.series([
+            next => {
+                if (keysFromFileReader) {
+                    keysFromFileReader.close(next);
+                } else {
+                    next();
+                }
+            },
+            next => {
+                if (clickhouseEventQueue.idle()) {
+                    next();
+                } else {
+                    clickhouseEventQueue.drain = next;
+                }
+            },
+        ], cb);
     };
 
     const opCb = opIdx => {
@@ -605,26 +642,7 @@ function run(batchObj, batchOp, cb) {
 }
 
 function sendEventToClickHouse(eventData) {
-    const postData = JSON.stringify(eventData);
-    const options = {
-        hostname: 'localhost',
-        port: 8123,
-        path: '/?query=INSERT%20INTO%20test.requests%20SETTINGS%20async_insert=1,%20wait_for_async_insert=0%20FORMAT%20JSONEachRow',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
-        },
-    };
-
-    const req = http.request(options);
-
-    req.on('error', e => {
-        console.error('Error sending event to ClickHouse:', e.message);
-    });
-
-    req.write(postData);
-    req.end();
+    clickhouseEventQueue.push(eventData);
 }
 
 module.exports = {
