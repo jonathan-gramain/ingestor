@@ -473,6 +473,7 @@ function run(batchObj, batchOp, cb) {
         del: 0,
     };
     const runId = crypto.randomBytes(16).toString('hex');
+    console.log(`    run ID:                 ${runId}`);
 
     function getMashedStats() {
         const doneCount = {};
