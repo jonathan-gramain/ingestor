@@ -36,6 +36,7 @@ ingestor.command('ingest')
     .option('--csv-stats-interval [n]',
             'interval in seconds between each CSV stats output line',
             parseIntOpt, 10)
+    .option('--clickhouse-endpoint [endpoint]', 'ClickHouse endpoint URL such as "http://localhost:8123"')
     .option('--one-object', 'hammer on a single object', false)
     .option('--delete-after-put', 'send deletes after objects are put', false)
     .option('--add-tags', 'add a random number of tags', false)
@@ -165,6 +166,7 @@ ingestor.command('ingest_bucketd')
     .option('--csv-stats-interval [n]',
             'interval in seconds between each CSV stats output line',
             parseIntOpt, 10)
+    .option('--clickhouse-endpoint [endpoint]', 'ClickHouse endpoint URL such as "http://localhost:8123"')
     .option('--one-object', 'hammer on a single object', false)
     .option('--hash-keys', 'hash keys after the prefix with a MD5 sum to make them unordered', false)
     .option('--append-key-hash', 'append a key MD5 hash after each key component, to lengthen the keys without changing their relative order', false)

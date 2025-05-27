@@ -48,31 +48,33 @@ let latenciesWindowPos = {
 let csvStatsFile = null;
 let keysFromFileReader = null;
 let keyList = null;
+let clickhouseEndpoint = null;
 
 const clickhouseEventQueue = async.cargoQueue((events, cb) => {
-    const postData = Buffer.concat(events.map(event => Buffer.from(JSON.stringify(event))));
-    const options = {
-        hostname: 'localhost',
-        port: 8123,
-        path: '/?query=INSERT%20INTO%20test.requests%20SETTINGS%20async_insert=1,%20wait_for_async_insert=0%20FORMAT%20JSONEachRow',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
-        },
-    };
+    const delay = events.length > 100 ? 0 : 100;
+    setTimeout(() => {
+        const postData = Buffer.concat(events.map(event => Buffer.from(JSON.stringify(event))));
+        const options = {
+            path: '/?query=INSERT%20INTO%20test.requests%20SETTINGS%20async_insert=1,%20wait_for_async_insert=0%20FORMAT%20JSONEachRow',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData),
+            },
+        };
 
-    const req = http.request(options, res => {
-        res.on('end', cb);
-        res.resume();
-    });
+        const req = http.request(clickhouseEndpoint, options, res => {
+            res.on('end', cb);
+            res.resume();
+        });
 
-    req.on('error', e => {
-        console.error('Error sending event to ClickHouse:', e.message);
-    });
+        req.on('error', e => {
+            console.error('Error sending event to ClickHouse:', e.message);
+        });
 
-    req.write(postData);
-    req.end();
+        req.write(postData);
+        req.end();
+    }, delay);
 }, 4);
 
 function queryStatsWindow() {
@@ -290,6 +292,7 @@ function showOptions(batchObj) {
     rate limit:             ${options.rateLimit ? `${options.rateLimit} op/s` : 'none'}
     CSV output:             ${options.csvStats ? options.csvStats : 'none'}
     CSV output interval:    ${options.csvStats ? `${options.csvStatsInterval} s` : 'N/A'}
+    clickhouse:             ${options.clickhouseEndpoint ? options.clickhouseEndpoint : '-'}
     hash keys:              ${options.hashKeys ? 'yes' : 'no'}
     keys from file:         ${options.keysFromFile ? options.keysFromFile : 'none'}
     read percent:           ${options.readPercent ? options.readPercent : '-'}
@@ -363,6 +366,10 @@ function shuffleArray(array) {
 
 function init(batchObj, cb) {
     const { options } = batchObj;
+
+    if (options.clickhouseEndpoint) {
+        clickhouseEndpoint = options.clickhouseEndpoint;
+    }
     if (options.keysFromFile) {
         return openKeysFromFileReader(batchObj, err => {
             if (err) {
@@ -555,12 +562,12 @@ function run(batchObj, batchOp, cb) {
                 sendEventToClickHouse({
                     runId: runId,
                     requestId: reqId,
-                    timestamp: new Date(opStartTime).toISOString().slice(0, 19).replace('T', ' '),
+                    timestamp: opStartTime,
                     opType,
                     requestDuration: (endTime - opStartTime) / 1000.0,
                     httpCode: 500,
                     bucketName: options.bucket,
-                    objectKey: 'dummy-key', // Placeholder
+                    objectKey,
                 });
                 opCb(opIdx);
             };
@@ -643,7 +650,9 @@ function run(batchObj, batchOp, cb) {
 }
 
 function sendEventToClickHouse(eventData) {
-    clickhouseEventQueue.push(eventData);
+    if (clickhouseEndpoint) {
+        clickhouseEventQueue.push(eventData);
+    }
 }
 
 module.exports = {
