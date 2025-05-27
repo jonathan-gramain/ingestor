@@ -505,35 +505,33 @@ function run(batchObj, batchOp, cb) {
         const startTime = Date.now();
         const doOp = () => {
             const opStartTime = Date.now();
-            const endSuccess = (opType, opIdx) => {
+            const endSuccess = (reqId, opType, opIdx, objectKey) => {
                 ++successCount[opType];
                 const endTime = Date.now();
                 sendEventToClickHouse({
                     runId: runId,
-                    requestId: crypto.randomBytes(16).toString('hex'), // Placeholder
-                    workerId: `node-worker`, // That might be irrelevant in nodejs
-                    timestamp: new Date(opStartTime).toISOString().slice(0, 19).replace('T', ' '),
+                    requestId: reqId,
+                    timestamp: opStartTime,
+                    opType,
                     requestDuration: (endTime - opStartTime) / 1000.0,
                     httpCode: 200,
-                    accountName: null, // Placeholder or derive if available
                     bucketName: options.bucket,
-                    objectKey: 'dummy-key', // Placeholder
+                    objectKey,
                 });
                 addLatency(opType, endTime - opStartTime);
                 opCb(opIdx);
             };
-            const endError = (opType, opIdx) => {
+            const endError = (reqId, opType, opIdx, objectKey) => {
                 ++errorCount[opType];
                 ++errorCount;
                 const endTime = Date.now();
                 sendEventToClickHouse({
                     runId: runId,
-                    requestId: crypto.randomBytes(16).toString('hex'), // Placeholder
-                    workerId: `node-worker`, // That might be irrelevant in nodejs
+                    requestId: reqId,
                     timestamp: new Date(opStartTime).toISOString().slice(0, 19).replace('T', ' '),
+                    opType,
                     requestDuration: (endTime - opStartTime) / 1000.0,
                     httpCode: 500,
-                    accountName: null, // Placeholder or derive if available
                     bucketName: options.bucket,
                     objectKey: 'dummy-key', // Placeholder
                 });
@@ -541,8 +539,8 @@ function run(batchObj, batchOp, cb) {
             };
             getKey(batchObj, n, ({ opType, opIdx, objKey }) => {
                 batchOp(s3s[n % s3s.length], n, opType, objKey,
-                        () => endSuccess(opType, opIdx),
-                        () => endError(opType, opIdx));
+                        () => endSuccess(n, opType, opIdx, objKey),
+                        () => endError(n, opType, opIdx, objKey));
             });
         };
         if (nextTime) {
