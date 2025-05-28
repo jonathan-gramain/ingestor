@@ -597,9 +597,9 @@ bson@^6.10.3, bson@^6.8.0:
   resolved "https://registry.yarnpkg.com/bson/-/bson-6.10.3.tgz#5f9a463af6b83e264bedd08b236d1356a30eda47"
   integrity sha512-MTxGsqgYTwfshYWTRdmZRC+M7FnG1b4y7RO7p2k3X24Wq0yv1m77Wsj0BzlPzd/IowgESfsruQCUToa7vbOpPQ==
 
-bucketclient@scality/bucketclient#8.2.3:
+bucketclient@scality/bucketclient#3b17de0eedef381c3e9a4f011c418f30f9d8c569:
   version "8.2.3"
-  resolved "https://codeload.github.com/scality/bucketclient/tar.gz/3dfe625021ef45ee2a0f6321e0a9ba04dee63378"
+  resolved "https://codeload.github.com/scality/bucketclient/tar.gz/3b17de0eedef381c3e9a4f011c418f30f9d8c569"
   dependencies:
     arsenal "git+https://github.com/scality/Arsenal#8.2.4"
     httpagent "git+https://github.com/scality/httpagent#1.1.0"
