@@ -558,7 +558,6 @@ function run(batchObj, batchOp, cb) {
             };
             const endError = (reqId, opType, opIdx, objectKey) => {
                 ++errorCount[opType];
-                ++errorCount;
                 const endTime = Date.now();
                 sendEventToClickHouse({
                     runId: runId,
