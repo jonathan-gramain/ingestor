@@ -48,8 +48,7 @@ function ingest_bucketd(options, cb) {
     batch.showOptions(batchObj);
 
     console.log(`
-    one object:          ${options.oneObject ? 'yes' : 'no'}
-`);
+    one object:          ${options.oneObject ? 'yes' : 'no'}`);
 
     const extraPutOpts = {};
 
@@ -71,12 +70,14 @@ function ingest_bucketd(options, cb) {
 
     const ingestOp = (bc, n, opType, objKey, endSuccess, endError) => {
         const uids = n.toString();
+        const bucket = batchObj.buckets[batchObj.bucketIdx];
+        batchObj.bucketIdx = (batchObj.bucketIdx + 1) % batchObj.buckets.length;
         switch (opType) {
         case 'put':
             const body = generateBody();
-            putObject(bc, options.bucket, objKey, body, uids, err => {
+            putObject(bc, bucket, objKey, body, uids, err => {
                 if (err) {
-                    console.error(`error during "POST ${options.bucket}/${objKey}":`,
+                    console.error(`error during "POST ${bucket}/${objKey}":`,
                                   err.message);
                     return endError();
                 }
@@ -84,9 +85,9 @@ function ingest_bucketd(options, cb) {
             });
             break;
         case 'get':
-            getObject(bc, options.bucket, objKey, uids, err => {
+            getObject(bc, bucket, objKey, uids, err => {
                 if (err && err.message !== 'NoSuchKey') {
-                    console.error(`error during "GET ${options.bucket}/${objKey}":`,
+                    console.error(`error during "GET ${bucket}/${objKey}":`,
                                   err.message);
                     return endError();
                 }
@@ -95,18 +96,18 @@ function ingest_bucketd(options, cb) {
             break;
         case 'del':
             if (options.versioned) {
-                putObject(bc, options.bucket, objKey, MD_DELETEMARKER, uids, err => {
+                putObject(bc, bucket, objKey, MD_DELETEMARKER, uids, err => {
                     if (err) {
-                        console.error(`error during "POST ${options.bucket}/${objKey}" (DM):`,
+                        console.error(`error during "POST ${bucket}/${objKey}" (DM):`,
                                       err.message);
                         return endError();
                     }
                     return endSuccess();
                 });
             } else {
-                deleteObject(bc, options.bucket, objKey, uids, err => {
+                deleteObject(bc, bucket, objKey, uids, err => {
                     if (err) {
-                        console.error(`error during "DELETE ${options.bucket}/${objKey}":`,
+                        console.error(`error during "DELETE ${bucket}/${objKey}":`,
                                       err.message);
                         return endError();
                     }
@@ -120,6 +121,28 @@ function ingest_bucketd(options, cb) {
         if (err) {
             return cb(err);
         }
+        batchObj.buckets = [];
+        batchObj.bucketIdx = 0;
+        if (options.bucket.includes('*') || options.bucket.includes('[')) {
+            const bc = bucketds[0];
+            return bc.listObject('users..bucket', '', {}, (err, listRes) => {
+                if (err) {
+                    return cb(err);
+                }
+                const parsedRes = JSON.parse(listRes);
+                const patternMatch = new RegExp(options.bucket.replace('*', '.*'));
+                batchObj.buckets.push(
+                    ...parsedRes.Contents
+                        .map(entry => entry.key.split('..|..')[1])
+                        .filter(bucketName => patternMatch.test(bucketName)));
+                if (batchObj.buckets.length === 0) {
+                    return cb(new Error('no bucket matches the provided glob pattern'));
+                }
+                console.log(`    bucket list:            ${batchObj.buckets.join(', ')}`);
+                return batch.run(batchObj, ingestOp, cb);
+            });
+        }
+        batchObj.buckets.push(options.bucket);
         return batch.run(batchObj, ingestOp, cb);
     });
 }
