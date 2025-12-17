@@ -79,6 +79,8 @@ ingestor.command('ingest')
             ingestor.outputHelp();
             process.exit(1);
         }
+        options.readPercent = 0;
+        options.deletePercent = 0;
         ingest(options, code => process.exit(code));
     });
 
