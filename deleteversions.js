@@ -97,7 +97,7 @@ function deleteversions(options, cb) {
                 VersionIdMarker = result.NextVersionIdMarker;
                 done();
             }),
-            () => !!(KeyMarker || VersionIdMarker),
+            cb => cb(null, !!(KeyMarker || VersionIdMarker)),
             err => {
                 if (err) {
                     return cb(err);
