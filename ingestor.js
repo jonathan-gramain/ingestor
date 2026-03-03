@@ -92,7 +92,7 @@ ingestor.command('ingest_mpu')
     .option('--parts [nparts]', 'number of parts', parseIntOpt, 10)
     .option('--size [n]', 'size of individual parts in bytes', parseIntOpt, 1000)
     .option('--prefix [prefix]', 'key prefix', '')
-    .option('--no-complete', 'do not complete the MPU', false)
+    .option('--no-complete', 'do not complete the MPU', true)
     .option('--abort', 'abort the MPU instead of completing it', false)
     .action(options => {
         if (!options.endpoint ||
